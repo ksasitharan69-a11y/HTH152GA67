@@ -3,11 +3,27 @@ import type {
   CEO, HR, Candidate, Company, Department, Vacancy, StructuredRequirement,
   Application, ApplicationStatus, Round1MatchAnalysis, MatchStatus, RequirementEvidence,
   TechnicalAssessment, AssessmentQuestion, FinalCandidateAnalysis, HRDecision,
-  AuditEntry, AuthState, UserRole
+  AuditEntry, AuthState, UserRole, ThemeMode
 } from '../types';
 
 // ==================== Storage Keys ====================
 const STORAGE_KEY = 'hireproof_platform_data_v2';
+const THEME_STORAGE_KEY = 'hireproof_theme_mode';
+
+function getInitialTheme(): ThemeMode {
+  try {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved === 'light' || saved === 'dark') {
+      return saved;
+    }
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+  } catch {
+    // fallback
+  }
+  return 'light';
+}
 
 // ==================== Helper Functions ====================
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -240,11 +256,63 @@ interface AppContextType {
   // Reset / Utility
   resetWorkspace: () => void;
   seedSampleApplication: () => void;
+
+  // Theme
+  theme: ThemeMode;
+  toggleTheme: () => void;
+  setTheme: (theme: ThemeMode) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  // Theme state with localStorage persistence & system theme detection
+  const [theme, setThemeState] = useState<ThemeMode>(getInitialTheme);
+
+  useEffect(() => {
+    try {
+      document.documentElement.setAttribute('data-theme', theme);
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+      if (metaThemeColor) {
+        metaThemeColor.setAttribute('content', theme === 'dark' ? '#0E1012' : '#F7F6F2');
+      }
+    } catch {
+      // storage or DOM error handling
+    }
+  }, [theme]);
+
+  // Listen to system theme changes if user hasn't explicitly saved a preference
+  useEffect(() => {
+    try {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleSystemThemeChange = (e: MediaQueryListEvent) => {
+        const saved = localStorage.getItem(THEME_STORAGE_KEY);
+        if (!saved) {
+          setThemeState(e.matches ? 'dark' : 'light');
+        }
+      };
+      mediaQuery.addEventListener('change', handleSystemThemeChange);
+      return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setThemeState(prev => (prev === 'dark' ? 'light' : 'dark'));
+  }, []);
+
+  const setTheme = useCallback((newTheme: ThemeMode) => {
+    setThemeState(newTheme);
+  }, []);
+
   // Load state from localStorage or initialize with clean seed
   const [auth, setAuth] = useState<AuthState>({ isAuthenticated: false, role: null, user: null });
 
@@ -1241,6 +1309,9 @@ B.Tech in Computer Science & Engineering (2018 - 2022)`;
     auth,
     login,
     logout,
+    theme,
+    toggleTheme,
+    setTheme,
     ceos,
     registerCEO,
     verifyCEO,

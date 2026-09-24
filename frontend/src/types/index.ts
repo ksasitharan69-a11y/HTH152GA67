@@ -236,3 +236,7 @@ export interface AuthState {
   role: UserRole | null;
   user: CEO | HR | Candidate | null;
 }
+
+// ==================== Theme ====================
+
+export type ThemeMode = 'light' | 'dark';

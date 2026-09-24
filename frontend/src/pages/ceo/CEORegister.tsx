@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { Toast } from '../../components/SharedComponents';
+import ThemeToggle from '../../components/ThemeToggle';
 
 export default function CEORegister() {
   const navigate = useNavigate();
@@ -48,6 +49,9 @@ export default function CEORegister() {
 
   return (
     <div className="auth-centered-wrapper">
+      <div className="auth-theme-toggle">
+        <ThemeToggle />
+      </div>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="auth-form-card">

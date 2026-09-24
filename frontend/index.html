@@ -5,8 +5,22 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="HIREPROOF — Explainable Candidate–Role Fit Engine. A two-round recruitment system mapping resume evidence to job requirements and conducting personalized AI technical assessments." />
-    <meta name="theme-color" content="#F7F6F2" />
     <title>HIREPROOF — Explainable Candidate–Role Fit Engine</title>
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('hireproof_theme_mode');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var theme = saved || (prefersDark ? 'dark' : 'light');
+          document.documentElement.setAttribute('data-theme', theme);
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', '#0E1012');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

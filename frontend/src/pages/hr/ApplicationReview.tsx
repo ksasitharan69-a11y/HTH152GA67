@@ -310,7 +310,7 @@ export default function ApplicationReview() {
 
                     {/* Expandable Evidence Body */}
                     {isExpanded && (
-                      <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: '#FAFAF8' }}>
+                      <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--surface-secondary)' }}>
                         {/* Evidence Citation */}
                         <div>
                           <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -374,15 +374,26 @@ export default function ApplicationReview() {
               </p>
             </div>
 
-            {round2 && (
-              <span className="badge" style={{
-                background: round2.status === 'completed' ? 'var(--verified-bg)' : 'var(--partial-bg)',
-                color: round2.status === 'completed' ? 'var(--verified)' : 'var(--partial)',
-                border: '1px solid var(--border)'
-              }}>
-                {round2.status === 'completed' ? 'Evaluation Complete' : 'Awaiting Candidate Submission'}
-              </span>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => navigate(`/hr/assessment/quiz-debugging/${app.id}`)}
+                title="View Round 2 Quiz and Debugging interview scores"
+              >
+                Quiz & Debugging Scores (HR Only)
+              </button>
+
+              {round2 && (
+                <span className="badge" style={{
+                  background: round2.status === 'completed' ? 'var(--verified-bg)' : 'var(--partial-bg)',
+                  color: round2.status === 'completed' ? 'var(--verified)' : 'var(--partial)',
+                  border: '1px solid var(--border)'
+                }}>
+                  {round2.status === 'completed' ? 'Evaluation Complete' : 'Awaiting Candidate Submission'}
+                </span>
+              )}
+            </div>
           </div>
 
           {!round2 || round2.questions.length === 0 ? (
@@ -551,7 +562,7 @@ export default function ApplicationReview() {
         )}
 
         {/* ==================== HR FINAL DECISION BAR ==================== */}
-        <section className="card mb-4" style={{ padding: '1.75rem 2rem', background: '#FAFAF7', border: '1.5px solid var(--accent)' }}>
+        <section className="card mb-4" style={{ padding: '1.75rem 2rem', background: 'var(--surface-secondary)', border: '1.5px solid var(--accent)' }}>
           <div style={{ marginBottom: '1rem' }}>
             <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.35rem', fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>
               HR Final Decision

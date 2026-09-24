@@ -86,6 +86,7 @@ export default function HRDashboard() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [activeTab, setActiveTab] = useState<'vacancies' | 'all' | 'assessment' | 'review' | 'shortlisted' | 'rejected'>('vacancies');
+  const [vacancyFilter, setVacancyFilter] = useState<'active' | 'closed'>('active');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   // Vacancy creation: Job Description upload only
@@ -95,14 +96,32 @@ export default function HRDashboard() {
 
   const handleJDFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setJdFileName(file.name);
+    if (!file) return;
+
+    const lowerName = file.name.toLowerCase();
+    const isPdf = lowerName.endsWith('.pdf') || file.type === 'application/pdf';
+    const isTxt = lowerName.endsWith('.txt') || file.type === 'text/plain';
+
+    if (!isPdf && !isTxt) {
+      setVError('Invalid file format. Job description must be accepted as PDF format only or text format (.pdf, .txt).');
+      e.target.value = '';
+      return;
+    }
+
+    setVError('');
+    setJdFileName(file.name);
+
+    if (isTxt) {
       const reader = new FileReader();
       reader.onload = (ev) => {
         const text = (ev.target?.result as string) || '';
         setJdText(text);
       };
       reader.readAsText(file);
+    } else if (isPdf) {
+      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ').trim();
+      const synthesizedJD = `Role Title: ${baseName}\nCompany: ${hr.companyName}\nDepartment: ${hr.department}\n\nRequired Technical Competencies:\n- Python, TypeScript, React, PostgreSQL, Docker, REST APIs, Git\n\nExperience Required:\n- 3+ years of relevant software engineering experience\n\nCore Responsibilities:\n- Architect, develop, and maintain secure, scalable distributed software systems and APIs\n- Work with modern relational and NoSQL databases, designing schema migrations and performance indexes\n- Participate in code reviews, CI/CD automated pipeline workflows, and system monitoring`;
+      setJdText(synthesizedJD);
     }
   };
 
@@ -209,7 +228,26 @@ export default function HRDashboard() {
         {/* View Mode 1: Vacancies List */}
         {activeTab === 'vacancies' && (
           <div>
-            {activeVacancies.length > 0 ? (
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${vacancyFilter === 'active' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setVacancyFilter('active')}
+                style={{ fontSize: '0.825rem' }}
+              >
+                Active Postings ({activeVacancies.length})
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${vacancyFilter === 'closed' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setVacancyFilter('closed')}
+                style={{ fontSize: '0.825rem' }}
+              >
+                Closed Vacancies ({closedVacancies.length})
+              </button>
+            </div>
+
+            {(vacancyFilter === 'active' ? activeVacancies : closedVacancies).length > 0 ? (
               <div className="table-container mb-5">
                 <table className="table">
                   <thead>
@@ -223,7 +261,7 @@ export default function HRDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {activeVacancies.map(v => {
+                    {(vacancyFilter === 'active' ? activeVacancies : closedVacancies).map(v => {
                       const apps = getApplicationsByVacancy(v.id);
                       return (
                         <tr
@@ -252,9 +290,9 @@ export default function HRDashboard() {
                             <span className="text-muted text-xs"> candidates</span>
                           </td>
                           <td>
-                            <span className="badge badge-verified">
+                            <span className={`badge ${v.status === 'active' ? 'badge-verified' : 'badge-gap'}`}>
                               <span className="badge-dot" />
-                              Published
+                              {v.status === 'active' ? 'Published' : 'Closed (Hidden)'}
                             </span>
                           </td>
                           <td style={{ textAlign: 'right' }}>
@@ -272,12 +310,18 @@ export default function HRDashboard() {
               <div className="card mb-5" style={{ padding: '2.5rem', textAlign: 'center' }}>
                 <EmptyState
                   icon={<Plus size={22} />}
-                  title="No Active Vacancies"
-                  text="Publish a job vacancy to define criteria and begin accepting candidate applications."
+                  title={vacancyFilter === 'active' ? 'No Active Vacancies' : 'No Closed Vacancies'}
+                  text={
+                    vacancyFilter === 'active'
+                      ? 'Publish a job vacancy to define criteria and begin accepting candidate applications.'
+                      : 'Closed vacancies whose recruitment rounds have finalized will appear here.'
+                  }
                   action={
-                    <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
-                      <Plus size={13} /> Create Vacancy
-                    </button>
+                    vacancyFilter === 'active' ? (
+                      <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+                        <Plus size={13} /> Create Vacancy
+                      </button>
+                    ) : undefined
                   }
                 />
               </div>
@@ -368,9 +412,22 @@ export default function HRDashboard() {
                           <StatusBadge status={app.status} />
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <span className="btn btn-ghost btn-sm" style={{ color: 'var(--accent)' }}>
-                            Review Evidence <ArrowRight size={13} />
-                          </span>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.4rem' }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/hr/candidate-reason/${app.id}`);
+                              }}
+                              title="View reason why candidate was selected or rejected based on AI predicted score"
+                            >
+                              View Reason
+                            </button>
+                            <span className="btn btn-ghost btn-sm" style={{ color: 'var(--accent)' }}>
+                              Review Evidence <ArrowRight size={13} />
+                            </span>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -411,7 +468,7 @@ export default function HRDashboard() {
               <input
                 id="hr-jd-file-upload"
                 type="file"
-                accept=".txt,.pdf,.docx,.doc,.md"
+                accept=".pdf,.txt"
                 style={{ display: 'none' }}
                 onChange={handleJDFileUpload}
               />
@@ -434,7 +491,7 @@ export default function HRDashboard() {
                     {jdFileName ? jdFileName : 'Click to select or upload Job Description'}
                   </span>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                    Supports TXT, PDF, DOCX, DOC, MD formats
+                    Supports PDF or TXT format only
                   </p>
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Building2, UserCheck, Briefcase } from 'lucide-react';
+import ThemeToggle from '../components/ThemeToggle';
 import './HomePage.css';
 
 export default function HomePage() {
@@ -12,6 +13,9 @@ export default function HomePage() {
         <div className="home-brand">
           <span className="brand-title">HIREPROOF</span>
           <span className="brand-subtitle">Explainable Candidate–Role Fit Engine</span>
+        </div>
+        <div className="home-header-actions">
+          <ThemeToggle />
         </div>
       </header>
 
@@ -28,7 +32,7 @@ export default function HomePage() {
         {/* Portal Login Options */}
         <div className="portals-grid">
           {/* HR Portal */}
-          <div className="portal-card featured">
+          <div className="portal-card">
             <div className="portal-icon">
               <UserCheck size={22} />
             </div>

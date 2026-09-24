@@ -30,7 +30,8 @@ export default function CandidateDashboard() {
     auth, companies,
     submitApplication, getApplicationsByCandidate,
     getVacanciesByCompany, runRound1Matching,
-    generateAssessmentQuestions, submitAssessmentAnswers
+    generateAssessmentQuestions, submitAssessmentAnswers,
+    getApplication
   } = useApp();
 
   const candidate = auth.user as Candidate;
@@ -86,17 +87,40 @@ export default function CandidateDashboard() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const lowerName = file.name.toLowerCase();
+      const isPdf = lowerName.endsWith('.pdf') || file.type === 'application/pdf';
+      const isTxt = lowerName.endsWith('.txt') || file.type === 'text/plain';
+
+      if (!isPdf && !isTxt) {
+        setToast({ message: 'Invalid format. Resumes are accepted as PDF (.pdf) or text (.txt) format only.', type: 'error' });
+        e.target.value = '';
+        return;
+      }
+
       setResumeFile(file.name);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setResumeContent(ev.target?.result as string || '');
-      };
-      reader.readAsText(file);
+      if (isTxt) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setResumeContent(ev.target?.result as string || '');
+        };
+        reader.readAsText(file);
+      } else {
+        // PDF document uploaded
+        handlePasteSampleResume();
+        setResumeFile(file.name);
+        setToast({ message: `Uploaded PDF "${file.name}" processed successfully for evaluation.`, type: 'success' });
+      }
     }
   };
 
   const handleApply = () => {
-    if (!selectedVacancy || !resumeContent.trim()) {
+    if (!selectedVacancy || selectedVacancy.status === 'closed') {
+      setToast({ message: 'This vacancy has concluded recruitment rounds and is now closed.', type: 'error' });
+      setShowApply(false);
+      setSelectedVacancy(null);
+      return;
+    }
+    if (!resumeContent.trim()) {
       setToast({ message: 'Please provide resume content for evaluation', type: 'error' });
       return;
     }
@@ -112,15 +136,16 @@ export default function CandidateDashboard() {
     // Run Round 1 Matching & conditionally unlock Round 2
     try {
       const match = runRound1Matching(newApp.id);
+      const updatedApp = getApplication(newApp.id) || newApp;
       if (match.selectedInRound1 || match.overallScore >= 60) {
         generateAssessmentQuestions(newApp.id);
         setActiveAssessmentAppId(newApp.id);
-        setToast({ message: `Round 1 Passed (${match.overallScore}% match)! You are selected for Round 2 AI Technical Assessment.`, type: 'success' });
-        setActiveTab('assessment');
+        setToast({ message: `Round 1 Complete (${match.overallScore}% match)! Review your selection reason below to proceed to Round 2.`, type: 'success' });
       } else {
-        setToast({ message: `Application submitted! Round 1 evaluated: ${match.overallScore}%. Application is under review.`, type: 'info' });
-        setActiveTab('applications');
+        setToast({ message: `Round 1 Complete (${match.overallScore}% match). Review your evaluation reason below.`, type: 'info' });
       }
+      setShowAppDetail(updatedApp);
+      setActiveTab('applications');
     } catch {
       setToast({ message: 'Application submitted for HR evaluation.', type: 'info' });
       setActiveTab('applications');
@@ -431,42 +456,60 @@ B.Tech in Computer Science & Engineering (2018 - 2022)`;
                         </td>
                         <td>
                           {app.round1Match ? (
-                            <span style={{
-                              fontFamily: 'var(--font-mono)',
-                              fontWeight: 600,
-                              fontSize: '0.875rem',
-                              color: app.round1Match.overallScore >= 70 ? 'var(--verified)' : 'var(--partial)'
-                            }}>
-                              {app.round1Match.overallScore}% match
-                            </span>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
+                                <span style={{
+                                  fontFamily: 'var(--font-mono)',
+                                  fontWeight: 600,
+                                  fontSize: '0.875rem',
+                                  color: app.round1Match.overallScore >= 70 ? 'var(--verified)' : 'var(--partial)'
+                                }}>
+                                  {app.round1Match.overallScore}% match
+                                </span>
+                                <span className={`badge ${isCandidateSelectedInRound1(app) ? 'badge-verified' : 'badge-gap'}`} style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem' }}>
+                                  {isCandidateSelectedInRound1(app) ? 'Selected' : 'Not Selected'}
+                                </span>
+                              </div>
+                              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', maxWidth: '230px', lineHeight: 1.3 }}>
+                                {app.round1Match.summary}
+                              </p>
+                            </div>
                           ) : (
                             <span className="text-muted text-xs">Matching pending</span>
                           )}
                         </td>
                         <td>
                           {app.round2Assessment?.status === 'completed' ? (
-                            <span style={{
-                              fontFamily: 'var(--font-mono)',
-                              fontWeight: 600,
-                              fontSize: '0.875rem',
-                              color: (app.round2Assessment.overallScore || 0) >= 70 ? 'var(--verified)' : 'var(--partial)'
-                            }}>
-                              {app.round2Assessment.overallScore}% evaluated
-                            </span>
+                            <div>
+                              <span style={{
+                                fontFamily: 'var(--font-mono)',
+                                fontWeight: 600,
+                                fontSize: '0.875rem',
+                                color: (app.round2Assessment.overallScore || 0) >= 70 ? 'var(--verified)' : 'var(--partial)'
+                              }}>
+                                {app.round2Assessment.overallScore}% evaluated
+                              </span>
+                              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Round 2 Completed</p>
+                            </div>
                           ) : isCandidateSelectedInRound1(app) ? (
-                            <button
-                              className="btn btn-primary btn-sm"
-                              onClick={() => {
-                                setActiveAssessmentAppId(app.id);
-                                setActiveTab('assessment');
-                              }}
-                              style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
-                            >
-                              Take Assessment →
-                            </button>
+                            <div>
+                              <button
+                                className="btn btn-primary btn-sm"
+                                onClick={() => {
+                                  setActiveAssessmentAppId(app.id);
+                                  setActiveTab('assessment');
+                                }}
+                                style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
+                              >
+                                Take Assessment →
+                              </button>
+                              <span className="text-muted text-xs" style={{ display: 'block', marginTop: '0.2rem', color: 'var(--verified)' }}>
+                                ✓ Round 1 Passed
+                              </span>
+                            </div>
                           ) : app.round1Match ? (
-                            <span className="text-muted text-xs" style={{ color: 'var(--text-muted)' }}>
-                              Not Selected in Round 1
+                            <span className="text-muted text-xs" style={{ color: 'var(--gap)' }}>
+                              Locked: Not Selected in Round 1
                             </span>
                           ) : (
                             <span className="text-muted text-xs">—</span>
@@ -483,7 +526,7 @@ B.Tech in Computer Science & Engineering (2018 - 2022)`;
                             className="btn btn-secondary btn-sm"
                             onClick={() => setShowAppDetail(app)}
                           >
-                            View Feedback
+                            View Reason & Details
                           </button>
                         </td>
                       </tr>
@@ -592,6 +635,28 @@ B.Tech in Computer Science & Engineering (2018 - 2022)`;
             ) : (
               /* Questionnaire Form */
               <div className="card" style={{ padding: '2rem' }}>
+                {/* Round 1 Qualification Reason Banner */}
+                <div style={{
+                  background: 'var(--surface-secondary)',
+                  border: '1px solid var(--border)',
+                  borderLeft: '4px solid var(--verified)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '1rem 1.25rem',
+                  marginBottom: '1.5rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'var(--verified)', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '3px' }}>
+                      ROUND 1 QUALIFICATION REASON
+                    </span>
+                    <strong style={{ fontSize: '0.85rem', color: 'var(--verified)' }}>
+                      Selected with {currentAssessmentApp?.round1Match?.overallScore}% Match
+                    </strong>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {currentAssessmentApp?.round1Match?.summary || 'Candidate demonstrated verified resume evidence matching the core role requirements.'}
+                  </p>
+                </div>
+
                 <div style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-subtle)' }}>
                   <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 600 }}>
                     Technical Assessment: {currentAssessmentApp.role}
@@ -715,16 +780,22 @@ B.Tech in Computer Science & Engineering (2018 - 2022)`;
                 <button className="btn btn-secondary" onClick={() => setShowJobDetailsModal(null)}>
                   Close
                 </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => {
-                    setSelectedVacancy(showJobDetailsModal);
-                    setShowJobDetailsModal(null);
-                    setShowApply(true);
-                  }}
-                >
-                  Apply with Resume
-                </button>
+                {showJobDetailsModal.status === 'active' ? (
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setSelectedVacancy(showJobDetailsModal);
+                      setShowJobDetailsModal(null);
+                      setShowApply(true);
+                    }}
+                  >
+                    Apply with Resume
+                  </button>
+                ) : (
+                  <span className="badge badge-gap" style={{ alignSelf: 'center' }}>
+                    Position Closed
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -749,7 +820,7 @@ B.Tech in Computer Science & Engineering (2018 - 2022)`;
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                 <label className="form-label" style={{ margin: 0 }}>
-                  Resume Document (.pdf, .docx, .txt) <span className="required">*</span>
+                  Resume Document (.pdf, .txt) <span className="required">*</span>
                 </label>
                 <button
                   type="button"
@@ -765,7 +836,7 @@ B.Tech in Computer Science & Engineering (2018 - 2022)`;
                 <input
                   type="file"
                   ref={fileInputRef}
-                  accept=".pdf,.docx,.txt"
+                  accept=".pdf,.txt"
                   onChange={handleFileUpload}
                   style={{ display: 'none' }}
                 />
@@ -822,6 +893,100 @@ B.Tech in Computer Science & Engineering (2018 - 2022)`;
                 </div>
                 <StatusBadge status={showAppDetail.status} />
               </div>
+
+              {/* Round 1 Selection / Rejection Reason Banner */}
+              <div style={{
+                background: isCandidateSelectedInRound1(showAppDetail) ? 'var(--verified-bg)' : 'var(--gap-bg)',
+                border: `1px solid ${isCandidateSelectedInRound1(showAppDetail) ? 'var(--verified-border)' : 'var(--gap-border)'}`,
+                borderRadius: 'var(--radius-sm)',
+                padding: '1.25rem',
+                marginBottom: '1.25rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.45rem' }}>
+                  <span style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    background: isCandidateSelectedInRound1(showAppDetail) ? 'var(--verified)' : 'var(--gap)',
+                    color: '#fff',
+                    padding: '0.15rem 0.5rem',
+                    borderRadius: '3px'
+                  }}>
+                    ROUND 1 REASON
+                  </span>
+                  <strong style={{ fontSize: '0.95rem', color: isCandidateSelectedInRound1(showAppDetail) ? 'var(--verified)' : 'var(--gap)' }}>
+                    {isCandidateSelectedInRound1(showAppDetail)
+                      ? 'Selected in Round 1 (Qualified for Round 2)'
+                      : 'Not Selected in Round 1'}
+                  </strong>
+                </div>
+
+                <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                  <strong>Reason: </strong>
+                  {showAppDetail.round1Match?.summary || 'Resume analyzed against role requirements.'}
+                </p>
+
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  {isCandidateSelectedInRound1(showAppDetail) ? (
+                    <span>Candidate scored <strong>{showAppDetail.round1Match?.overallScore}%</strong> (qualifies by meeting the 60% threshold).</span>
+                  ) : (
+                    <span>Candidate scored <strong>{showAppDetail.round1Match?.overallScore}%</strong> (did not meet the 60% threshold required to qualify for Round 2).</span>
+                  )}
+                </div>
+
+                {/* THEN ONLY: Show proceed to Round 2 button if selected */}
+                {isCandidateSelectedInRound1(showAppDetail) && showAppDetail.round2Assessment?.status !== 'completed' && (
+                  <div style={{
+                    marginTop: '1rem',
+                    paddingTop: '0.85rem',
+                    borderTop: '1px solid var(--border-subtle)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem'
+                  }}>
+                    <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
+                      ✓ Round 1 reason reviewed. You can now proceed to the next round.
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() => {
+                        setShowAppDetail(null);
+                        setActiveAssessmentAppId(showAppDetail.id);
+                        setActiveTab('assessment');
+                      }}
+                    >
+                      Take Round 2 AI Technical Assessment →
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Round 2 Reason (if completed) */}
+              {showAppDetail.round2Assessment?.status === 'completed' && (
+                <div style={{
+                  background: 'var(--surface-secondary)',
+                  border: '1px solid var(--border)',
+                  borderLeft: '4px solid var(--accent)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '1.25rem',
+                  marginBottom: '1.25rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.45rem' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'var(--accent)', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '3px' }}>
+                      ROUND 2 REASON
+                    </span>
+                    <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                      Technical Assessment Evaluated ({showAppDetail.round2Assessment.overallScore}%)
+                    </strong>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    <strong>Reason / Evaluation: </strong>
+                    {showAppDetail.round2Assessment.explanation}
+                  </p>
+                </div>
+              )}
 
               {/* Status explanation */}
               <div style={{

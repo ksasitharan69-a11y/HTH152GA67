@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { LogOut, LayoutDashboard } from 'lucide-react';
+import { LogOut } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
 
 export default function Navbar() {
   const { auth, logout } = useApp();
@@ -38,13 +39,10 @@ export default function Navbar() {
       </div>
 
       <div className="navbar-actions">
+        <ThemeToggle />
+
         {auth.isAuthenticated && (
           <>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate(getDashboardPath())}>
-              <LayoutDashboard size={14} />
-              <span>Workspace</span>
-            </button>
-
             <div className="navbar-user" style={{ paddingLeft: '0.5rem', borderLeft: '1px solid var(--border)' }}>
               <div className="navbar-user-avatar">{getUserInitials()}</div>
               <div className="navbar-user-info" style={{ display: 'flex', flexDirection: 'column' }}>

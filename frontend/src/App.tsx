@@ -10,6 +10,8 @@ import HRLogin from './pages/hr/HRLogin';
 import HRDashboard from './pages/hr/HRDashboard';
 import VacancyDetail from './pages/hr/VacancyDetail';
 import ApplicationReview from './pages/hr/ApplicationReview';
+import CandidateDecisionReason from './pages/hr/CandidateDecisionReason';
+import TechnicalInterviewAssessment from './pages/hr/TechnicalInterviewAssessment';
 import CandidateLogin from './pages/candidate/CandidateLogin';
 import CandidateRegister from './pages/candidate/CandidateRegister';
 import CandidateDashboard from './pages/candidate/CandidateDashboard';
@@ -30,6 +32,8 @@ function AppRoutes() {
       <Route path="/hr/dashboard" element={<HRDashboard />} />
       <Route path="/hr/vacancy/:vacancyId" element={<VacancyDetail />} />
       <Route path="/hr/application/:applicationId" element={<ApplicationReview />} />
+      <Route path="/hr/candidate-reason/:applicationId" element={<CandidateDecisionReason />} />
+      <Route path="/hr/assessment/quiz-debugging/:applicationId" element={<TechnicalInterviewAssessment />} />
 
       {/* Candidate Routes */}
       <Route path="/candidate/login" element={<CandidateLogin />} />
