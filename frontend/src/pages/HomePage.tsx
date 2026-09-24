@@ -1,107 +1,112 @@
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Building2, UserCheck, Briefcase } from 'lucide-react';
 import './HomePage.css';
 
 export default function HomePage() {
   const navigate = useNavigate();
 
   return (
-    <div className="home-page">
+    <div className="home-container">
       {/* Editorial Navigation */}
-      <nav className="home-nav">
-        <div style={{ display: 'flex', alignItems: 'baseline' }}>
-          <span className="home-logo">HireProof</span>
-          <span className="home-logo-sub">AI</span>
+      <header className="home-header">
+        <div className="home-brand">
+          <span className="brand-title">HIREPROOF</span>
+          <span className="brand-subtitle">Explainable Candidate–Role Fit Engine</span>
         </div>
-        <div className="home-nav-meta">
-          Evidence-Based Recruitment Operations
-        </div>
-      </nav>
+      </header>
 
-      {/* Hero Section */}
-      <section className="home-hero-section">
-        <span className="home-hero-badge">Verifiable Candidate Evaluation</span>
-        <h1 className="home-hero-title">
-          Recruitment decisions,<br />
-          with evidence behind them.
-        </h1>
-        <p className="home-hero-sub">
-          Most recruitment systems tell you whether a resume matches a role.
-          HireProof shows why — mapping every claim directly to verifiable proof,
-          flagging unverified gaps, and giving hiring teams traceable reasoning.
-        </p>
-
-        {/* Direct Role Entry Points */}
-        <div className="home-hero-actions">
-          <button className="home-role-btn primary" onClick={() => navigate('/hr/login')}>
-            <span>Sign in as HR Reviewer</span>
-            <span className="home-role-tag">Workspaces & Review</span>
-            <ArrowRight size={15} />
-          </button>
-          <button className="home-role-btn" onClick={() => navigate('/candidate/login')}>
-            <span>Sign in as Candidate</span>
-            <span className="home-role-tag">Applications & Evidence</span>
-            <ArrowRight size={15} />
-          </button>
-          <button className="home-role-btn" onClick={() => navigate('/ceo/login')}>
-            <span>Sign in as CEO</span>
-            <span className="home-role-tag">Org Administration</span>
-            <ArrowRight size={15} />
-          </button>
-        </div>
-      </section>
-
-      {/* Horizontal Workflow Section */}
-      <section className="home-workflow-section">
-        <div className="home-workflow-divider">
-          <h2 className="home-workflow-title">The Evaluation Methodology</h2>
-          <span className="home-workflow-desc">Traceable from initial parse to final hiring decision</span>
+      {/* Main Content: Short Intro + 3 Login Portals */}
+      <main className="home-main">
+        <div className="home-intro-text">
+          <h1 className="home-heading">Explainable Candidate–Role Fit Engine</h1>
+          <p className="home-subheading">
+            An explainable recruitment platform that evaluates candidate–role fit through verifiable resume evidence
+            and personalized technical assessments — giving HR transparent reasoning for final decisions.
+          </p>
         </div>
 
-        <div className="home-steps-grid">
-          <div className="home-step-col">
-            <span className="home-step-num">01</span>
-            <h3 className="home-step-heading">MATCH</h3>
-            <p className="home-step-body">
-              Compare candidate profile directly against mandatory job requirements to establish baseline eligibility.
+        {/* Portal Login Options */}
+        <div className="portals-grid">
+          {/* HR Portal */}
+          <div className="portal-card featured">
+            <div className="portal-icon">
+              <UserCheck size={22} />
+            </div>
+            <div className="portal-header">
+              <span className="portal-label">Recruiter & Reviewer</span>
+              <h2 className="portal-title">HR Workspace</h2>
+            </div>
+            <p className="portal-desc">
+              Review requirement-level evidence breakdowns, inspect personalized technical assessments, compare applicants, and record final hiring decisions.
             </p>
+            <div className="portal-credentials">
+              <span className="cred-label">Login Credentials:</span>
+              <code>rahul@abc.com / password123</code>
+            </div>
+            <div className="portal-actions">
+              <button className="btn btn-primary w-full" onClick={() => navigate('/hr/login')}>
+                <span>Sign in as HR</span>
+                <ArrowRight size={15} />
+              </button>
+            </div>
           </div>
 
-          <div className="home-step-col">
-            <span className="home-step-num">02</span>
-            <h3 className="home-step-heading">PROVE</h3>
-            <p className="home-step-body">
-              Extract exact source citations, project contributions, and documented experience supporting each claim.
+          {/* Candidate Portal */}
+          <div className="portal-card">
+            <div className="portal-icon">
+              <Briefcase size={22} />
+            </div>
+            <div className="portal-header">
+              <span className="portal-label">Applicant Portal</span>
+              <h2 className="portal-title">Candidate Workspace</h2>
+            </div>
+            <p className="portal-desc">
+              Browse published vacancies by company and department, upload your resume, take your personalized AI Technical Assessment, and track application status.
             </p>
+            <div className="portal-credentials">
+              <span className="cred-label">Login Credentials:</span>
+              <code>candidate@test.com / password123</code>
+            </div>
+            <div className="portal-actions split">
+              <button className="btn btn-primary" onClick={() => navigate('/candidate/login')}>
+                <span>Sign In</span>
+                <ArrowRight size={14} />
+              </button>
+              <button className="btn btn-secondary" onClick={() => navigate('/candidate/register')}>
+                <span>Register</span>
+              </button>
+            </div>
           </div>
 
-          <div className="home-step-col">
-            <span className="home-step-num">03</span>
-            <h3 className="home-step-heading">VERIFY</h3>
-            <p className="home-step-body">
-              Generate targeted practical challenges or request work samples for skills that lack definitive proof.
+          {/* CEO Portal */}
+          <div className="portal-card">
+            <div className="portal-icon">
+              <Building2 size={22} />
+            </div>
+            <div className="portal-header">
+              <span className="portal-label">Executive Administration</span>
+              <h2 className="portal-title">CEO Workspace</h2>
+            </div>
+            <p className="portal-desc">
+              Register your company, establish departments, create and provision authorized HR accounts, and oversee organization-wide recruitment standards.
             </p>
+            <div className="portal-credentials">
+              <span className="cred-label">Login Credentials:</span>
+              <code>ceo@abc.com / password123</code>
+            </div>
+            <div className="portal-actions split">
+              <button className="btn btn-primary" onClick={() => navigate('/ceo/login')}>
+                <span>Sign In</span>
+                <ArrowRight size={14} />
+              </button>
+              <button className="btn btn-secondary" onClick={() => navigate('/ceo/register')}>
+                <span>Register Company</span>
+              </button>
+            </div>
           </div>
+        </div>
+      </main>
 
-          <div className="home-step-col">
-            <span className="home-step-num">04</span>
-            <h3 className="home-step-heading">EXPLAIN</h3>
-            <p className="home-step-body">
-              Maintain an immutable audit trail with explicit reasoning for every verification and human reviewer override.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Editorial Footer */}
-      <footer className="home-footer">
-        <div>
-          <strong>HireProof AI</strong> — Professional Evidence Review Workspace
-        </div>
-        <div>
-          Built for recruiters and hiring managers who demand traceable accuracy.
-        </div>
-      </footer>
     </div>
   );
 }

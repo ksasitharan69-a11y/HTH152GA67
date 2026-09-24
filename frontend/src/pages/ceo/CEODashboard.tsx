@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import Navbar from '../../components/Navbar';
@@ -14,8 +14,14 @@ export default function CEODashboard() {
   } = useApp();
 
   const ceo = auth.user as CEO;
-  if (!ceo) {
-    navigate('/ceo/login');
+
+  useEffect(() => {
+    if (!auth.isAuthenticated || !ceo) {
+      navigate('/', { replace: true });
+    }
+  }, [auth.isAuthenticated, ceo, navigate]);
+
+  if (!auth.isAuthenticated || !ceo) {
     return null;
   }
 

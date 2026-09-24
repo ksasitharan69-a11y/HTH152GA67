@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import Navbar from '../../components/Navbar';
@@ -8,8 +8,18 @@ import { ArrowLeft, ChevronRight } from 'lucide-react';
 export default function VacancyDetail() {
   const { vacancyId } = useParams<{ vacancyId: string }>();
   const navigate = useNavigate();
-  const { vacancies, getApplicationsByVacancy, updateVacancyStatus } = useApp();
+  const { auth, vacancies, getApplicationsByVacancy, updateVacancyStatus } = useApp();
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  useEffect(() => {
+    if (!auth.isAuthenticated || !auth.user) {
+      navigate('/', { replace: true });
+    }
+  }, [auth.isAuthenticated, auth.user, navigate]);
+
+  if (!auth.isAuthenticated || !auth.user) {
+    return null;
+  }
 
   const vacancy = vacancies.find(v => v.id === vacancyId);
   const applications = vacancyId ? getApplicationsByVacancy(vacancyId) : [];
@@ -39,9 +49,9 @@ export default function VacancyDetail() {
       <Navbar />
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      <div className="page-content">
+      <div className="page-content page-content-wide">
         <button className="btn btn-ghost btn-sm mb-3" onClick={() => navigate('/hr/dashboard')}>
-          <ArrowLeft size={14} /> Back to Dashboard
+          <ArrowLeft size={14} /> Back to HR Dashboard
         </button>
 
         {/* Editorial Role Header */}
@@ -88,56 +98,12 @@ export default function VacancyDetail() {
           </div>
         </div>
 
-        {/* Specification Card */}
-        <div className="card mb-5">
-          <div style={{ marginBottom: '1.25rem' }}>
-            <span className="section-title" style={{ display: 'block', marginBottom: '0.4rem' }}>
-              Role Scope & Responsibilities
-            </span>
-            <p className="text-secondary" style={{ fontSize: '0.9375rem', lineHeight: 1.65, whiteSpace: 'pre-line' }}>
-              {vacancy.jobDescription}
-            </p>
-          </div>
-
-          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
-            <span className="section-title" style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Mandatory Requirements (Matched Against Resumes)
-            </span>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-              {vacancy.requiredSkills.map(s => (
-                <span key={s} className="tag" style={{ fontWeight: 500 }}>{s}</span>
-              ))}
-            </div>
-          </div>
-
-          {vacancy.preferredSkills.length > 0 && (
-            <div style={{ marginTop: '1rem' }}>
-              <span className="section-title" style={{ display: 'block', marginBottom: '0.4rem', color: 'var(--text-muted)' }}>
-                Preferred / Nice-to-Have Skills
-              </span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                {vacancy.preferredSkills.map(s => (
-                  <span key={s} className="tag" style={{ color: 'var(--text-secondary)' }}>{s}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {vacancy.otherRequirements && (
-            <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.85rem', marginTop: '1rem' }}>
-              <span className="section-title" style={{ display: 'block', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>
-                Additional Evaluation Notes
-              </span>
-              <p className="text-secondary text-sm">{vacancy.otherRequirements}</p>
-            </div>
-          )}
-        </div>
 
         {/* Applicant Evaluation Table */}
         <div className="section-header">
           <div>
             <h2 className="section-title">Submitted Candidates ({applications.length})</h2>
-            <p className="section-subtitle">Applicants evaluated against specified criteria with cited evidence</p>
+            <p className="section-subtitle">Candidate evaluations across Round 1 (Resume Match) and Round 2 (Technical Assessment)</p>
           </div>
         </div>
 
@@ -147,9 +113,11 @@ export default function VacancyDetail() {
               <thead>
                 <tr>
                   <th>Candidate</th>
-                  <th>Evaluation State</th>
-                  <th>Match Confidence</th>
-                  <th>Application Date</th>
+                  <th>Round 1 (Resume Match)</th>
+                  <th>Round 2 (Tech Assessment)</th>
+                  <th>Overall Fit</th>
+                  <th>Current State</th>
+                  <th>Applied On</th>
                   <th style={{ textAlign: 'right' }}>Evidence Review</th>
                 </tr>
               </thead>
@@ -179,21 +147,51 @@ export default function VacancyDetail() {
                       </div>
                     </td>
                     <td>
-                      <StatusBadge status={app.status} />
-                    </td>
-                    <td>
-                      {app.aiAnalysis ? (
+                      {app.round1Match ? (
                         <span style={{
                           fontFamily: 'var(--font-mono)',
                           fontWeight: 600,
                           fontSize: '0.875rem',
-                          color: app.aiAnalysis.overallScore >= 70 ? 'var(--verified)' : (app.aiAnalysis.overallScore >= 40 ? 'var(--partial)' : 'var(--gap)')
+                          color: app.round1Match.overallScore >= 70 ? 'var(--verified)' : (app.round1Match.overallScore >= 40 ? 'var(--partial)' : 'var(--gap)')
                         }}>
-                          {app.aiAnalysis.overallScore}% fit
+                          {app.round1Match.overallScore}%
                         </span>
                       ) : (
-                        <span className="text-muted text-xs">Evaluation pending</span>
+                        <span className="text-muted text-xs">Pending</span>
                       )}
+                    </td>
+                    <td>
+                      {app.round2Assessment?.status === 'completed' ? (
+                        <span style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontWeight: 600,
+                          fontSize: '0.875rem',
+                          color: (app.round2Assessment.overallScore || 0) >= 70 ? 'var(--verified)' : 'var(--partial)'
+                        }}>
+                          {app.round2Assessment.overallScore}%
+                        </span>
+                      ) : app.status === 'Assessment Pending' ? (
+                        <span className="text-muted text-xs" style={{ color: 'var(--partial)' }}>Awaiting answers</span>
+                      ) : (
+                        <span className="text-muted text-xs">—</span>
+                      )}
+                    </td>
+                    <td>
+                      {app.finalAnalysis ? (
+                        <span style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontWeight: 700,
+                          fontSize: '0.9rem',
+                          color: 'var(--accent)'
+                        }}>
+                          {app.finalAnalysis.overallFitScore}%
+                        </span>
+                      ) : (
+                        <span className="text-muted text-xs">—</span>
+                      )}
+                    </td>
+                    <td>
+                      <StatusBadge status={app.status} />
                     </td>
                     <td>
                       <span className="text-secondary text-sm">
@@ -202,7 +200,7 @@ export default function VacancyDetail() {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <span className="btn btn-ghost btn-sm" style={{ color: 'var(--accent)', fontWeight: 500 }}>
-                        Inspect Evidence <ChevronRight size={13} />
+                        Review Candidate <ChevronRight size={13} />
                       </span>
                     </td>
                   </tr>
@@ -215,7 +213,7 @@ export default function VacancyDetail() {
             <EmptyState
               icon={<span style={{ fontSize: '1.25rem', color: 'var(--text-muted)' }}>0</span>}
               title="No Candidates Applied Yet"
-              text="Candidates who submit resumes for this position will appear here with evidence analysis."
+              text="Candidates who submit resumes for this position will appear here with evidence and assessment analysis."
             />
           </div>
         )}

@@ -47,41 +47,11 @@ export default function CEORegister() {
   };
 
   return (
-    <div className="auth-split-wrapper">
+    <div className="auth-centered-wrapper">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* Editorial Left Column */}
-      <div className="auth-editorial-side">
-        <div style={{ display: 'flex', alignItems: 'baseline' }}>
-          <span className="auth-editorial-logo">HireProof</span>
-          <span className="navbar-badge" style={{ marginLeft: '0.4rem' }}>AI</span>
-        </div>
-
-        <div className="auth-editorial-quote">
-          <h2 className="auth-editorial-title">
-            "Build an evidence-based hiring organization."
-          </h2>
-          <p className="auth-editorial-sub">
-            Establish verified recruitment standards across departments. Give hiring teams
-            the tools to prove candidate capability with zero guesswork.
-          </p>
-
-          <div className="auth-editorial-steps">
-            <span className="auth-editorial-step-item">Instant company workspace provisioning</span>
-            <span className="auth-editorial-step-item">Delegated HR reviewer roles</span>
-            <span className="auth-editorial-step-item">Automated evidence matching engine</span>
-          </div>
-        </div>
-
-        <div className="auth-editorial-footer">
-          Company Registration · Enterprise Workspace
-        </div>
-      </div>
-
-      {/* Right Column Form */}
-      <div className="auth-form-side">
-        <div className="auth-form-card">
-          {step === 'done' ? (
+      <div className="auth-form-card">
+        {step === 'done' ? (
             <div style={{ textAlign: 'center', padding: '1rem 0' }}>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.25rem', color: 'var(--verified)' }}>
                 <CheckCircle2 size={44} />
@@ -211,7 +181,6 @@ export default function CEORegister() {
             </div>
           )}
         </div>
-      </div>
     </div>
   );
 }

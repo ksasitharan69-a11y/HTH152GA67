@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
 
 /* ==================== Design Tokens (Second Pass: Editorial & Human-Designed) ==================== */
 :root {
@@ -627,95 +628,44 @@ h1, h2, h3 {
   font-style: italic;
 }
 
-/* ==================== Split Authentication Layout ==================== */
+/* ==================== Center-Aligned Authentication Layout ==================== */
+.auth-centered-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  background: var(--bg);
+}
+
 .auth-split-wrapper {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
   background: var(--bg);
 }
 
 .auth-editorial-side {
-  background: var(--surface-secondary);
-  border-right: 1px solid var(--border);
-  padding: 4rem 3.5rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.auth-editorial-logo {
-  font-family: var(--font-heading);
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
-}
-
-.auth-editorial-quote {
-  max-width: 440px;
-}
-
-.auth-editorial-title {
-  font-family: var(--font-heading);
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.25;
-  margin-bottom: 1rem;
-}
-
-.auth-editorial-sub {
-  font-size: 1rem;
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
-
-.auth-editorial-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 1.75rem;
-  padding-top: 1.75rem;
-  border-top: 1px solid var(--border);
-}
-
-.auth-editorial-step-item {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.auth-editorial-footer {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
+  display: none !important;
 }
 
 .auth-form-side {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 3rem 2rem;
-  background: var(--bg);
+  width: 100%;
 }
 
 .auth-form-card {
   width: 100%;
-  max-width: 420px;
+  max-width: 440px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 2.25rem;
+  padding: 2.5rem 2.25rem;
   box-shadow: var(--shadow-panel);
-}
-
-@media (max-width: 860px) {
-  .auth-split-wrapper {
-    grid-template-columns: 1fr;
-  }
-  .auth-editorial-side {
-    display: none;
-  }
 }
 
 /* ==================== Review Workspace (Split Requirements & Evidence) ==================== */
@@ -962,4 +912,106 @@ h1, h2, h3 {
   color: var(--text-secondary);
   max-width: 400px;
   margin: 0 auto;
+}
+
+/* ==================== Requirement Badges & Status ==================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: var(--radius-sm);
+}
+
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.badge-match, .badge-verified {
+  background-color: var(--verified-bg);
+  color: var(--verified);
+  border: 1px solid var(--verified-border);
+}
+
+.badge-partial {
+  background-color: var(--partial-bg);
+  color: var(--partial);
+  border: 1px solid var(--partial-border);
+}
+
+.badge-unverified {
+  background-color: var(--unverified-bg);
+  color: var(--unverified);
+  border: 1px solid var(--unverified-border);
+}
+
+.badge-gap {
+  background-color: var(--gap-bg);
+  color: var(--gap);
+  border: 1px solid var(--gap-border);
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background-color: var(--surface-secondary);
+  color: var(--text-secondary);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.status-applied {
+  background-color: var(--surface-secondary);
+  color: var(--text-secondary);
+  border-color: var(--border);
+}
+
+.status-screening {
+  background-color: var(--accent-light);
+  color: var(--accent);
+  border-color: var(--border);
+}
+
+.status-assessment-pending {
+  background-color: var(--partial-bg);
+  color: var(--partial);
+  border-color: var(--partial-border);
+}
+
+.status-assessment-completed, .status-under-hr-review {
+  background-color: var(--accent-light);
+  color: var(--accent);
+  border-color: var(--border);
+}
+
+.status-shortlisted, .status-selected {
+  background-color: var(--verified-bg);
+  color: var(--verified);
+  border-color: var(--verified-border);
+}
+
+.status-rejected {
+  background-color: var(--gap-bg);
+  color: var(--gap);
+  border-color: var(--gap-border);
 }

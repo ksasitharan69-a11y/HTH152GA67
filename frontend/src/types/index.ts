@@ -26,10 +26,10 @@ export interface Candidate {
   id: string;
   email: string;
   password: string;
+  name?: string;
   githubProfile?: string;
   linkedinProfile?: string;
   verified: boolean;
-  name?: string;
 }
 
 // ==================== Company & Department ====================
@@ -43,7 +43,6 @@ export interface Company {
   industry?: string;
   location?: string;
   website?: string;
-  logo?: string;
 }
 
 export interface Department {
@@ -52,7 +51,18 @@ export interface Department {
   companyId: string;
 }
 
-// ==================== Vacancy ====================
+// ==================== Vacancy & Structured Requirements ====================
+
+export interface StructuredRequirement {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  type: 'Required' | 'Preferred';
+  importance: 'High' | 'Medium' | 'Low';
+  expectedExperience?: string;
+  semanticKeywords?: string[];
+}
 
 export interface Vacancy {
   id: string;
@@ -62,26 +72,32 @@ export interface Vacancy {
   companyName: string;
   hrId: string;
   jobDescription: string;
+  responsibilities?: string;
+  technicalRequirements?: string;
+  location?: string;
+  workMode?: string;
   requiredSkills: string[];
   preferredSkills: string[];
   requiredExperience: string;
   education: string;
   otherRequirements: string;
+  structuredRequirements: StructuredRequirement[];
   status: 'active' | 'closed';
   createdAt: string;
   applicantCount: number;
 }
 
-// ==================== Application ====================
+// ==================== Application Workflow ====================
 
 export type ApplicationStatus =
   | 'Applied'
-  | 'Under Review'
-  | 'Verification Required'
-  | 'Assessment'
+  | 'Screening'
+  | 'Assessment Pending'
+  | 'Assessment Completed'
+  | 'Under HR Review'
   | 'Shortlisted'
-  | 'Selected'
-  | 'Not Selected';
+  | 'Rejected'
+  | 'Selected';
 
 export interface Application {
   id: string;
@@ -96,71 +112,107 @@ export interface Application {
   resumeContent?: string;
   status: ApplicationStatus;
   appliedAt: string;
-  aiAnalysis?: AIAnalysis;
+
+  // Round 1: Resume-JD Matching
+  round1Match?: Round1MatchAnalysis;
+  round1Selected?: boolean;
+
+  // Round 2: AI Technical Assessment
+  round2Assessment?: TechnicalAssessment;
+
+  // Final Combined Explainable Analysis
+  finalAnalysis?: FinalCandidateAnalysis;
+
+  // HR Final Decision
+  hrDecision?: HRDecision;
+
+  // Explainable Audit Trail
   auditTrail: AuditEntry[];
 }
 
-// ==================== AI Matching ====================
+// ==================== ROUND 1: Resume–JD Matching ====================
 
-export type RequirementStatus = 'VERIFIED' | 'PARTIAL' | 'UNVERIFIED' | 'GAP';
-
-export type VerificationMethod =
-  | 'resume'
-  | 'assessment'
-  | 'interview'
-  | 'evidence_upload'
-  | 'work_sample'
-  | 'hr_override';
+export type MatchStatus = 'MATCH' | 'PARTIAL' | 'UNVERIFIED' | 'GAP';
 
 export interface RequirementEvidence {
   requirementId: string;
   requirement: string;
-  status: RequirementStatus;
-  evidence: string;
-  evidenceSource: string;
-  aiReasoning: string;
-  verificationMethod?: VerificationMethod;
-  verificationResult?: string;
-  verificationDetails?: string;
-  hrOverride?: HROverride;
+  category?: string;
+  type?: 'Required' | 'Preferred';
+  importance?: 'High' | 'Medium' | 'Low';
+  status: MatchStatus;
+  evidence: string | null;
+  source: string | null;
+  reasoning: string;
+  confidence: number;
 }
 
-export interface AIAnalysis {
+export interface Round1MatchAnalysis {
   id: string;
   applicationId: string;
-  overallScore: number;
+  overallScore: number; // 0 - 100
+  selectedInRound1?: boolean;
   requirements: RequirementEvidence[];
   summary: string;
   strengths: string[];
+  partialSkills: string[];
+  unverifiedSkills: string[];
   gaps: string[];
-  recommendation: string;
   analyzedAt: string;
 }
 
-// ==================== Verification ====================
+// ==================== ROUND 2: AI Technical Assessment ====================
 
-export interface VerificationChallenge {
+export interface AssessmentQuestion {
   id: string;
-  applicationId: string;
-  requirementId: string;
-  requirement: string;
-  type: 'challenge' | 'interview' | 'evidence_upload' | 'work_sample';
   question: string;
+  targetSkill: string;
+  category: 'technical' | 'scenario' | 'problem_solving' | 'resume_specific';
   candidateAnswer?: string;
-  aiEvaluation?: string;
-  evaluationResult?: 'Strong Evidence' | 'Partial Evidence' | 'Insufficient Evidence';
-  status: 'pending' | 'submitted' | 'evaluated';
-  createdAt: string;
+  evaluation?: {
+    score: number; // 0 - 10
+    maxScore: number;
+    reasoning: string;
+    strengths: string;
+    weaknesses: string;
+  };
 }
 
-// ==================== HR Override ====================
+export interface TechnicalAssessment {
+  id: string;
+  applicationId: string;
+  questions: AssessmentQuestion[];
+  status: 'pending' | 'in_progress' | 'completed';
+  overallScore?: number; // 0 - 100
+  technicalStrengths?: string[];
+  technicalWeaknesses?: string[];
+  explanation?: string;
+  completedAt?: string;
+}
 
-export interface HROverride {
-  originalStatus: RequirementStatus;
-  newStatus: RequirementStatus;
-  reason: string;
-  overriddenBy: string;
-  overriddenAt: string;
+// ==================== FINAL ANALYSIS ====================
+
+export interface FinalCandidateAnalysis {
+  id: string;
+  applicationId: string;
+  round1Score: number;
+  round2Score: number;
+  overallFitScore: number; // 0 - 100
+  recommendation: string;
+  summary: string;
+  keyStrengths: string[];
+  skillGaps: string[];
+  concerns: string[];
+  generatedAt: string;
+}
+
+// ==================== HR Decision ====================
+
+export interface HRDecision {
+  decision: 'Shortlisted' | 'Under HR Review' | 'Rejected' | 'Selected';
+  decidedBy: string;
+  decidedAt: string;
+  notes?: string;
 }
 
 // ==================== Audit Trail ====================
@@ -170,14 +222,14 @@ export interface AuditEntry {
   applicationId: string;
   action: string;
   actor: string;
-  actorRole: UserRole;
+  actorRole: UserRole | 'system';
   details: string;
   timestamp: string;
   previousValue?: string;
   newValue?: string;
 }
 
-// ==================== Auth Context ====================
+// ==================== Auth State ====================
 
 export interface AuthState {
   isAuthenticated: boolean;

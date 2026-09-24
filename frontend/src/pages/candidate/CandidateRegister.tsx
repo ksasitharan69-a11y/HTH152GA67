@@ -44,41 +44,11 @@ export default function CandidateRegister() {
   };
 
   return (
-    <div className="auth-split-wrapper">
+    <div className="auth-centered-wrapper">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* Editorial Left Column */}
-      <div className="auth-editorial-side">
-        <div style={{ display: 'flex', alignItems: 'baseline' }}>
-          <span className="auth-editorial-logo">HireProof</span>
-          <span className="navbar-badge" style={{ marginLeft: '0.4rem' }}>AI</span>
-        </div>
-
-        <div className="auth-editorial-quote">
-          <h2 className="auth-editorial-title">
-            "Eliminate opaque hiring black boxes."
-          </h2>
-          <p className="auth-editorial-sub">
-            When you apply through HireProof, your resume is analyzed with exact citations
-            to requirements. Where evidence is missing, you get the opportunity to prove your skill.
-          </p>
-
-          <div className="auth-editorial-steps">
-            <span className="auth-editorial-step-item">Transparent requirement checklist</span>
-            <span className="auth-editorial-step-item">Practical assessments to verify unconfirmed skills</span>
-            <span className="auth-editorial-step-item">Direct links to your GitHub and LinkedIn work</span>
-          </div>
-        </div>
-
-        <div className="auth-editorial-footer">
-          Candidate Registration · Verified Applications
-        </div>
-      </div>
-
-      {/* Right Column Form */}
-      <div className="auth-form-side">
-        <div className="auth-form-card">
-          {step === 'done' ? (
+      <div className="auth-form-card">
+        {step === 'done' ? (
             <div style={{ textAlign: 'center', padding: '1rem 0' }}>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.25rem', color: 'var(--verified)' }}>
                 <CheckCircle2 size={44} />
@@ -185,7 +155,7 @@ export default function CandidateRegister() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="cand-gh">GitHub Profile (Optional Evidence Source)</label>
+                  <label className="form-label" htmlFor="cand-gh">GitHub Profile (Profile Information)</label>
                   <input
                     id="cand-gh"
                     type="url"
@@ -197,7 +167,7 @@ export default function CandidateRegister() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="cand-li">LinkedIn Profile (Optional Evidence Source)</label>
+                  <label className="form-label" htmlFor="cand-li">LinkedIn Profile (Profile Information)</label>
                   <input
                     id="cand-li"
                     type="url"
@@ -221,7 +191,6 @@ export default function CandidateRegister() {
             </div>
           )}
         </div>
-      </div>
     </div>
   );
 }

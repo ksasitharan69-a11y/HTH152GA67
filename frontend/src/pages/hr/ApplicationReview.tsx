@@ -1,52 +1,46 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import Navbar from '../../components/Navbar';
-import { Toast, Modal, RequirementBadge, StatusBadge, EmptyState } from '../../components/SharedComponents';
-import type { RequirementStatus, ApplicationStatus, VerificationChallenge, RequirementEvidence } from '../../types';
+import { Toast, Modal, RequirementBadge, StatusBadge, EmptyState, ScoreRing } from '../../components/SharedComponents';
+import type { MatchStatus } from '../../types';
 import {
-  ArrowLeft, Play, Shield, Code, MessageSquare, Upload, ClipboardList,
-  RefreshCw, CheckCircle2, FileText, ChevronRight, FileSearch
+  ArrowLeft, Play, ShieldAlert,
+  ChevronDown, ChevronUp, FileText, CheckCircle2,
+  Clock, GitCompare, MessageSquare
 } from 'lucide-react';
 
 export default function ApplicationReview() {
   const { applicationId } = useParams<{ applicationId: string }>();
   const navigate = useNavigate();
   const {
-    auth, applications, vacancies, runAIAnalysis,
-    createChallenge, challenges, overrideDecision,
-    updateApplicationStatus
+    auth,
+    applications,
+    vacancies,
+    runRound1Matching,
+    generateAssessmentQuestions,
+    recordHRDecision
   } = useApp();
+
+  useEffect(() => {
+    if (!auth.isAuthenticated || !auth.user) {
+      navigate('/', { replace: true });
+    }
+  }, [auth.isAuthenticated, auth.user, navigate]);
+
+  if (!auth.isAuthenticated || !auth.user) {
+    return null;
+  }
 
   const app = applications.find(a => a.id === applicationId);
   const vacancy = app ? vacancies.find(v => v.id === app.vacancyId) : null;
-  const appChallenges = challenges.filter(c => c.applicationId === applicationId);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [activeTab, setActiveTab] = useState<'workspace' | 'matrix' | 'verification' | 'audit'>('workspace');
-
-  // Currently selected requirement in the evidence inspector panel
-  const [selectedReqId, setSelectedReqId] = useState<string | null>(null);
-
-  // Modals state
-  const [showOverride, setShowOverride] = useState<string | null>(null);
-  const [overrideForm, setOverrideForm] = useState({ status: '' as RequirementStatus | '', reason: '' });
-  const [showVerifyModal, setShowVerifyModal] = useState<string | null>(null);
-  const [showStatusModal, setShowStatusModal] = useState(false);
-  const [newStatus, setNewStatus] = useState<ApplicationStatus | ''>('');
-  const [showResumeDrawer, setShowResumeDrawer] = useState(false);
-
-  const analysis = app?.aiAnalysis;
-
-  // Set default selected requirement to the first one when analysis loads
-  const currentSelectedReq = useMemo(() => {
-    if (!analysis || analysis.requirements.length === 0) return null;
-    if (selectedReqId) {
-      const found = analysis.requirements.find(r => r.requirementId === selectedReqId);
-      if (found) return found;
-    }
-    return analysis.requirements[0];
-  }, [analysis, selectedReqId]);
+  const [expandedReqs, setExpandedReqs] = useState<Record<string, boolean>>({});
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [showComparisonModal, setShowComparisonModal] = useState(false);
+  const [hrNotes, setHrNotes] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'ALL' | MatchStatus>('ALL');
 
   if (!app || !vacancy) {
     return (
@@ -54,12 +48,12 @@ export default function ApplicationReview() {
         <Navbar />
         <div className="page-content">
           <EmptyState
-            icon={<FileText size={24} style={{ color: 'var(--text-muted)' }} />}
-            title="Application Record Not Found"
-            text="The candidate evaluation record does not exist or has been removed."
+            icon={<FileText size={28} style={{ color: 'var(--text-muted)' }} />}
+            title="Candidate Record Not Found"
+            text="The requested applicant profile could not be located in this workspace."
             action={
               <button className="btn btn-secondary btn-sm" onClick={() => navigate('/hr/dashboard')}>
-                Return to Dashboard
+                Return to HR Dashboard
               </button>
             }
           />
@@ -68,40 +62,52 @@ export default function ApplicationReview() {
     );
   }
 
-  const handleRunAI = () => {
-    runAIAnalysis(app.id);
-    setToast({ message: 'Evaluating candidate resume against requirements...', type: 'info' });
-    setTimeout(() => {
-      setToast({ message: 'Evaluation completed: evidence cited for each requirement.', type: 'success' });
-    }, 1200);
+  const round1 = app.round1Match;
+  const round2 = app.round2Assessment;
+  const finalAnalysis = app.finalAnalysis;
+  const otherApplications = applications.filter(a => a.vacancyId === app.vacancyId && a.id !== app.id);
+
+  // Toggle single requirement expand
+  const toggleReq = (id: string) => {
+    setExpandedReqs(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handleOverride = (reqId: string) => {
-    if (!overrideForm.status || !overrideForm.reason) return;
-    overrideDecision(app.id, reqId, overrideForm.status as RequirementStatus, overrideForm.reason, auth.user?.name || 'HR Reviewer');
-    setToast({ message: 'Evaluation decision updated with logged justification.', type: 'success' });
-    setShowOverride(null);
-    setOverrideForm({ status: '', reason: '' });
+  // Expand or collapse all
+  const toggleAll = (expand: boolean) => {
+    if (!round1) return;
+    const update: Record<string, boolean> = {};
+    round1.requirements.forEach(r => {
+      update[r.requirementId] = expand;
+    });
+    setExpandedReqs(update);
   };
 
-  const handleCreateChallenge = (reqId: string, requirement: string, type: VerificationChallenge['type']) => {
-    createChallenge(app.id, reqId, requirement, type);
-    setToast({ message: `Verification task initiated for ${requirement}`, type: 'success' });
-    setShowVerifyModal(null);
+  const handleRunRound1 = () => {
+    try {
+      runRound1Matching(app.id);
+      setToast({ message: 'Round 1: Resume–JD matching & evidence extraction completed.', type: 'success' });
+    } catch {
+      setToast({ message: 'Error processing resume. Check resume content.', type: 'error' });
+    }
   };
 
-  const handleStatusUpdate = () => {
-    if (!newStatus) return;
-    updateApplicationStatus(app.id, newStatus, auth.user?.name || 'HR Reviewer');
-    setToast({ message: `Status updated to "${newStatus}"`, type: 'success' });
-    setShowStatusModal(false);
-    setNewStatus('');
+  const handleHRDecision = (decision: 'Shortlisted' | 'Under HR Review' | 'Rejected' | 'Selected') => {
+    recordHRDecision(app.id, decision, hrNotes, auth.user?.name || 'HR Reviewer');
+    if ((decision === 'Shortlisted' || decision === 'Selected') && !app.round2Assessment) {
+      try {
+        generateAssessmentQuestions(app.id);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    setToast({ message: `Candidate successfully marked as "${decision}"`, type: 'success' });
+    setHrNotes('');
   };
 
-  const statuses: ApplicationStatus[] = [
-    'Applied', 'Under Review', 'Verification Required', 'Assessment',
-    'Shortlisted', 'Selected', 'Not Selected'
-  ];
+  const filteredRequirements = round1?.requirements.filter(r => {
+    if (filterStatus === 'ALL') return true;
+    return r.status === filterStatus;
+  }) || [];
 
   return (
     <div className="page-container">
@@ -110,593 +116,653 @@ export default function ApplicationReview() {
 
       <div className="page-content page-content-wide">
         {/* Navigation Breadcrumb */}
-        <button className="btn btn-ghost btn-sm mb-3" onClick={() => navigate(`/hr/vacancy/${app.vacancyId}`)}>
-          <ArrowLeft size={14} /> Back to {vacancy.title} Candidates
-        </button>
-
-        {/* Editorial Candidate Identity Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.25rem', marginBottom: '1.75rem' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.015em' }}>
-                {app.candidateName || app.candidateEmail}
-              </h1>
-              <StatusBadge status={app.status} />
-            </div>
-
-            <p className="text-secondary" style={{ fontSize: '0.9375rem', marginTop: '0.35rem' }}>
-              {vacancy.title} · <strong>{vacancy.companyName}</strong> · Applied {new Date(app.appliedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {app.resumeContent && (
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowResumeDrawer(!showResumeDrawer)}>
-                <FileSearch size={13} /> {showResumeDrawer ? 'Hide Resume' : 'View Resume Text'}
-              </button>
-            )}
-
-            {!analysis ? (
-              <button className="btn btn-primary btn-sm" onClick={handleRunAI}>
-                <Play size={13} /> Run Evidence Evaluation
-              </button>
-            ) : (
-              <button className="btn btn-secondary btn-sm" onClick={handleRunAI} title="Re-evaluate resume text">
-                <RefreshCw size={13} /> Re-evaluate
-              </button>
-            )}
-
-            <button className="btn btn-primary btn-sm" onClick={() => setShowStatusModal(true)}>
-              Update Status
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/hr/vacancy/${app.vacancyId}`)}>
+            <ArrowLeft size={14} /> Back to {vacancy.title} Applications
+          </button>
+          {otherApplications.length > 0 && (
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowComparisonModal(true)}>
+              <GitCompare size={14} /> Compare with {otherApplications.length} Other Applicant{otherApplications.length > 1 ? 's' : ''}
             </button>
+          )}
+        </div>
+
+        {/* ==================== CANDIDATE HEADER ==================== */}
+        <div className="card mb-4" style={{ padding: '1.75rem 2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.5rem' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+                <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.85rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                  {app.candidateName || app.candidateEmail}
+                </h1>
+                <StatusBadge status={app.status} />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginTop: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                <span>Role Applied: <strong>{app.role}</strong></span>
+                <span>Department: <strong>{vacancy.department}</strong></span>
+                <span>Company: <strong>{app.companyName}</strong></span>
+                <span>Applied: {new Date(app.appliedAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowResumeModal(true)}>
+                <FileText size={14} /> View Original Resume
+              </button>
+              {!round1 && (
+                <button className="btn btn-primary btn-sm" onClick={handleRunRound1}>
+                  <Play size={14} /> Run Round 1 Matching
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Scores Overview Row */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1.25rem',
+            marginTop: '1.75rem',
+            paddingTop: '1.5rem',
+            borderTop: '1px solid var(--border-subtle)'
+          }}>
+            {/* Round 1 Score */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', background: 'var(--surface-secondary)', padding: '1rem', borderRadius: 'var(--radius-sm)' }}>
+              <ScoreRing score={round1 ? round1.overallScore : 0} size={70} strokeWidth={6} />
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>ROUND 1</span>
+                <h4 style={{ margin: '0.1rem 0', fontSize: '1.1rem', fontWeight: 600 }}>Resume-JD Match</h4>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  {round1 ? `${round1.strengths.length} verified matches` : 'Pending analysis'}
+                </span>
+              </div>
+            </div>
+
+            {/* Round 2 Score */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', background: 'var(--surface-secondary)', padding: '1rem', borderRadius: 'var(--radius-sm)' }}>
+              <ScoreRing score={round2?.overallScore || 0} size={70} strokeWidth={6} />
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>ROUND 2</span>
+                <h4 style={{ margin: '0.1rem 0', fontSize: '1.1rem', fontWeight: 600 }}>AI Tech Assessment</h4>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  {round2?.status === 'completed' ? `${round2.questions.length} questions evaluated` : 'Pending candidate submission'}
+                </span>
+              </div>
+            </div>
+
+            {/* Combined Final Fit */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', background: 'var(--accent-light)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+              <ScoreRing score={finalAnalysis?.overallFitScore || 0} size={70} strokeWidth={6} />
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>SYNTHESIS</span>
+                <h4 style={{ margin: '0.1rem 0', fontSize: '1.1rem', fontWeight: 600, color: 'var(--accent)' }}>Overall Fit Score</h4>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  {finalAnalysis ? 'Explainable AI Analysis' : 'Awaiting 2 rounds'}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Expandable Plaintext Resume Drawer */}
-        {showResumeDrawer && app.resumeContent && (
-          <div className="card mb-4" style={{ background: 'var(--surface-secondary)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-              <span className="section-title" style={{ fontSize: '0.75rem' }}>Submitted Resume Plaintext</span>
-              <span className="text-xs text-muted" style={{ fontFamily: 'var(--font-mono)' }}>{app.resumeFile || 'source-doc.txt'}</span>
+        {/* ==================== ROUND 1: REQUIREMENT-LEVEL MATCHING & EVIDENCE ==================== */}
+        <section className="card mb-4" style={{ padding: '1.75rem 2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'var(--accent)', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '3px' }}>ROUND 1</span>
+                <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.35rem', fontWeight: 600, margin: 0 }}>
+                  Requirement-Level Match & Evidence
+                </h2>
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                Every requirement is individually evaluated against resume evidence using semantic analysis.
+              </p>
             </div>
-            <div style={{
-              maxHeight: 180, overflowY: 'auto', padding: '0.85rem 1rem', background: 'var(--surface)',
-              border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
-              fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', lineHeight: 1.6, color: 'var(--text-secondary)',
-              whiteSpace: 'pre-wrap'
-            }}>
-              {app.resumeContent}
+
+            {/* Filter pills & Expand All */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', background: 'var(--surface-secondary)', padding: '0.2rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                {(['ALL', 'MATCH', 'PARTIAL', 'UNVERIFIED', 'GAP'] as const).map(s => (
+                  <button
+                    key={s}
+                    className={`btn btn-ghost btn-sm ${filterStatus === s ? 'active' : ''}`}
+                    onClick={() => setFilterStatus(s)}
+                    style={{
+                      fontSize: '0.72rem',
+                      padding: '0.2rem 0.55rem',
+                      fontWeight: filterStatus === s ? 700 : 500,
+                      background: filterStatus === s ? 'var(--surface)' : 'transparent',
+                      boxShadow: filterStatus === s ? 'var(--shadow-subtle)' : 'none'
+                    }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              <button className="btn btn-ghost btn-sm" onClick={() => toggleAll(true)} style={{ fontSize: '0.75rem' }}>
+                Expand All
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => toggleAll(false)} style={{ fontSize: '0.75rem' }}>
+                Collapse All
+              </button>
             </div>
           </div>
-        )}
 
-        {/* Editorial Match Summary Strip */}
-        {analysis && (
-          <div className="metric-strip" style={{ marginBottom: '1.75rem' }}>
-            <div className="metric-item" style={{ flex: '0 0 200px' }}>
-              <div className="metric-label">Requirement Coverage</div>
-              <div className="metric-value" style={{ color: analysis.overallScore >= 70 ? 'var(--verified)' : (analysis.overallScore >= 40 ? 'var(--partial)' : 'var(--gap)') }}>
-                {analysis.overallScore}%
-              </div>
+          {!round1 ? (
+            <div style={{ textAlign: 'center', padding: '2.5rem', background: 'var(--surface-secondary)', borderRadius: 'var(--radius-sm)' }}>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                Round 1 analysis has not yet been triggered for this candidate.
+              </p>
+              <button className="btn btn-primary btn-sm" onClick={handleRunRound1}>
+                <Play size={14} /> Run Round 1 Resume–JD Matching
+              </button>
             </div>
-            <div className="metric-item">
-              <div className="metric-label">Verified Evidence</div>
-              <div className="metric-value" style={{ color: 'var(--verified)' }}>
-                {analysis.requirements.filter(r => r.status === 'VERIFIED').length}
-              </div>
-            </div>
-            <div className="metric-item">
-              <div className="metric-label">Partial Evidence</div>
-              <div className="metric-value" style={{ color: 'var(--partial)' }}>
-                {analysis.requirements.filter(r => r.status === 'PARTIAL').length}
-              </div>
-            </div>
-            <div className="metric-item">
-              <div className="metric-label">Unverified</div>
-              <div className="metric-value" style={{ color: 'var(--unverified)' }}>
-                {analysis.requirements.filter(r => r.status === 'UNVERIFIED').length}
-              </div>
-            </div>
-            <div className="metric-item">
-              <div className="metric-label">Missing Gaps</div>
-              <div className="metric-value" style={{ color: 'var(--gap)' }}>
-                {analysis.requirements.filter(r => r.status === 'GAP').length}
-              </div>
-            </div>
-          </div>
-        )}
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {filteredRequirements.map(req => {
+                const isExpanded = !!expandedReqs[req.requirementId];
 
-        {/* Workspace Tab Navigation */}
-        <div className="tabs">
-          <button
-            className={`tab ${activeTab === 'workspace' ? 'active' : ''}`}
-            onClick={() => setActiveTab('workspace')}
-          >
-            Evidence Review Workspace ({analysis ? analysis.requirements.length : 0})
-          </button>
-          <button
-            className={`tab ${activeTab === 'matrix' ? 'active' : ''}`}
-            onClick={() => setActiveTab('matrix')}
-          >
-            Traceability Matrix
-          </button>
-          <button
-            className={`tab ${activeTab === 'verification' ? 'active' : ''}`}
-            onClick={() => setActiveTab('verification')}
-          >
-            Verification Tasks ({appChallenges.length})
-          </button>
-          <button
-            className={`tab ${activeTab === 'audit' ? 'active' : ''}`}
-            onClick={() => setActiveTab('audit')}
-          >
-            Audit Trail ({app.auditTrail.length})
-          </button>
-        </div>
-
-        {/* TAB 1: Signature Review Workspace (Split: Left Requirements, Right Inspector) */}
-        {activeTab === 'workspace' && analysis && (
-          <div className="review-workspace">
-            {/* Left Column: Requirements List */}
-            <div className="requirements-list-column">
-              <span className="section-title" style={{ fontSize: '0.75rem', marginBottom: '0.25rem' }}>
-                Evaluated Requirements · Select to inspect
-              </span>
-
-              {analysis.requirements.map(req => {
-                const isSelected = currentSelectedReq?.requirementId === req.requirementId;
                 return (
                   <div
                     key={req.requirementId}
-                    className={`requirement-row-item ${isSelected ? 'selected' : ''}`}
-                    onClick={() => setSelectedReqId(req.requirementId)}
+                    style={{
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'var(--surface)',
+                      transition: 'border-color 0.15s ease'
+                    }}
                   >
-                    <div style={{ flex: 1, paddingRight: '1rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.25rem' }}>
+                    {/* Header Row */}
+                    <div
+                      onClick={() => toggleReq(req.requirementId)}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '0.9rem 1.25rem',
+                        cursor: 'pointer',
+                        background: isExpanded ? 'var(--surface-secondary)' : 'var(--surface)',
+                        borderBottom: isExpanded ? '1px solid var(--border)' : 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <RequirementBadge status={req.status} />
-                        <span style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--text-primary)' }}>
-                          {req.requirement}
-                        </span>
-                        {req.hrOverride && (
-                          <span className="badge badge-unverified" style={{ fontSize: '0.65rem' }}>
-                            Overridden
-                          </span>
-                        )}
-                        {req.verificationMethod && req.verificationMethod !== 'resume' && (
-                          <span className="badge badge-verified" style={{ fontSize: '0.65rem' }}>
-                            Verified
-                          </span>
-                        )}
+                        <div>
+                          <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>{req.requirement}</strong>
+                          {req.category && (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.65rem' }}>
+                              {req.category} · {req.type || 'Required'}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      <p className="text-secondary text-xs" style={{ margin: 0, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        "{req.evidence}"
-                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                          Confidence: {Math.round((req.confidence || 0.85) * 100)}%
+                        </span>
+                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                      <span className="btn btn-ghost btn-sm" style={{ color: isSelected ? 'var(--accent)' : 'var(--text-muted)' }}>
-                        {req.status === 'UNVERIFIED' || req.status === 'GAP' ? 'Verify' : 'Inspect'} <ChevronRight size={13} />
-                      </span>
-                    </div>
+                    {/* Expandable Evidence Body */}
+                    {isExpanded && (
+                      <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: '#FAFAF8' }}>
+                        {/* Evidence Citation */}
+                        <div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            SUPPORTING RESUME EVIDENCE
+                          </span>
+                          <div style={{
+                            marginTop: '0.35rem',
+                            padding: '0.75rem 1rem',
+                            background: req.evidence ? 'var(--surface)' : 'var(--surface-secondary)',
+                            borderLeft: req.evidence ? '3px solid var(--accent)' : '3px solid var(--border)',
+                            borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
+                            fontFamily: req.evidence ? 'var(--font-body)' : 'inherit',
+                            fontSize: '0.875rem',
+                            color: req.evidence ? 'var(--text-primary)' : 'var(--text-muted)',
+                            fontStyle: req.evidence ? 'italic' : 'normal'
+                          }}>
+                            {req.evidence || 'No supporting evidence found in the provided resume.'}
+                          </div>
+                        </div>
+
+                        {/* Source Location */}
+                        {req.source && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            <span style={{ fontWeight: 600 }}>Source Section:</span>
+                            <code style={{ background: 'var(--surface-secondary)', padding: '0.15rem 0.4rem', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>
+                              {req.source}
+                            </code>
+                          </div>
+                        )}
+
+                        {/* AI Reasoning */}
+                        <div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            AI REASONING & CLASSIFICATION RATIONALE
+                          </span>
+                          <p style={{ margin: '0.35rem 0 0', fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                            {req.reasoning}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
+          )}
+        </section>
 
-            {/* Right Column: Sticky Document Evidence Inspector */}
-            <div className="evidence-inspector-panel">
-              {currentSelectedReq ? (
-                <div>
-                  {/* Header of Inspector */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', paddingBottom: '0.85rem', borderBottom: '1px solid var(--border)' }}>
+        {/* ==================== ROUND 2: AI TECHNICAL ASSESSMENT ==================== */}
+        <section className="card mb-4" style={{ padding: '1.75rem 2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'var(--verified)', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '3px' }}>ROUND 2</span>
+                <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.35rem', fontWeight: 600, margin: 0 }}>
+                  AI Technical Assessment & Answer Evaluation
+                </h2>
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                Personalized questions generated from role requirements, resume claims, and identified partial/gap areas.
+              </p>
+            </div>
+
+            {round2 && (
+              <span className="badge" style={{
+                background: round2.status === 'completed' ? 'var(--verified-bg)' : 'var(--partial-bg)',
+                color: round2.status === 'completed' ? 'var(--verified)' : 'var(--partial)',
+                border: '1px solid var(--border)'
+              }}>
+                {round2.status === 'completed' ? 'Evaluation Complete' : 'Awaiting Candidate Submission'}
+              </span>
+            )}
+          </div>
+
+          {!round2 || round2.questions.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2.5rem', background: 'var(--surface-secondary)', borderRadius: 'var(--radius-sm)' }}>
+              <p style={{ color: 'var(--text-secondary)' }}>
+                Personalized assessment will be generated once candidate enters the assessment phase.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {round2.questions.map((q, idx) => (
+                <div
+                  key={q.id}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '1.25rem',
+                    background: 'var(--surface)'
+                  }}
+                >
+                  {/* Question header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '0.65rem' }}>
                     <div>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Evidence Inspector
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        QUESTION {idx + 1} · {q.targetSkill.toUpperCase()} ({q.category.replace('_', ' ')})
                       </span>
-                      <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 600, marginTop: '0.15rem', color: 'var(--text-primary)' }}>
-                        {currentSelectedReq.requirement}
-                      </h3>
+                      <h4 style={{ margin: '0.25rem 0 0', fontSize: '0.975rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {q.question}
+                      </h4>
                     </div>
-                    <RequirementBadge status={currentSelectedReq.status} />
+
+                    {q.evaluation && (
+                      <div style={{
+                        textAlign: 'right',
+                        minWidth: '60px',
+                        background: q.evaluation.score >= 7 ? 'var(--verified-bg)' : 'var(--partial-bg)',
+                        color: q.evaluation.score >= 7 ? 'var(--verified)' : 'var(--partial)',
+                        padding: '0.35rem 0.65rem',
+                        borderRadius: 'var(--radius-sm)',
+                        fontWeight: 700,
+                        fontFamily: 'var(--font-mono)'
+                      }}>
+                        {q.evaluation.score} / {q.evaluation.maxScore}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Why this status? */}
-                  <div style={{ marginBottom: '1.25rem' }}>
-                    <span className="section-title" style={{ fontSize: '0.75rem', display: 'block', marginBottom: '0.35rem' }}>
-                      Reasoning
+                  {/* Candidate Answer */}
+                  <div style={{ marginTop: '0.85rem' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      CANDIDATE ANSWER
                     </span>
-                    <p className="text-secondary" style={{ fontSize: '0.875rem', lineHeight: 1.6 }}>
-                      {currentSelectedReq.aiReasoning}
-                    </p>
-                  </div>
-
-                  {/* Document Style Evidence Excerpt Box */}
-                  <div style={{ marginBottom: '1.25rem' }}>
-                    <span className="section-title" style={{ fontSize: '0.75rem', display: 'block', marginBottom: '0.35rem' }}>
-                      CITED EVIDENCE EXCERPT
-                    </span>
-                    <div className="evidence-document-box">
-                      <div className="evidence-source-tag">
-                        <FileText size={11} /> Source: {currentSelectedReq.evidenceSource}
-                      </div>
-                      <div className="evidence-quote-text">
-                        "{currentSelectedReq.evidence}"
-                      </div>
+                    <div style={{
+                      marginTop: '0.35rem',
+                      padding: '0.75rem 1rem',
+                      background: 'var(--surface-secondary)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.875rem',
+                      color: q.candidateAnswer ? 'var(--text-primary)' : 'var(--text-muted)',
+                      fontStyle: q.candidateAnswer ? 'normal' : 'italic',
+                      lineHeight: 1.55
+                    }}>
+                      {q.candidateAnswer || 'Awaiting candidate answer submission.'}
                     </div>
                   </div>
 
-                  {/* Logged Override Information */}
-                  {currentSelectedReq.hrOverride && (
-                    <div style={{ padding: '0.85rem 1rem', background: 'var(--accent-light)', border: '1px solid #D6E4F0', borderRadius: 'var(--radius-sm)', marginBottom: '1.25rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', display: 'block' }}>
-                        Human Reviewer Override · By {currentSelectedReq.hrOverride.overriddenBy}
-                      </span>
-                      <p className="text-secondary text-xs" style={{ marginTop: '0.25rem', lineHeight: 1.5 }}>
-                        Status modified from <strong>{currentSelectedReq.hrOverride.originalStatus}</strong> to <strong>{currentSelectedReq.hrOverride.newStatus}</strong>.
-                        <br />
-                        Rationale: "{currentSelectedReq.hrOverride.reason}"
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Verification Outcome */}
-                  {currentSelectedReq.verificationResult && (
-                    <div style={{ padding: '0.85rem 1rem', background: 'var(--verified-bg)', border: '1px solid var(--verified-border)', borderRadius: 'var(--radius-sm)', marginBottom: '1.25rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--verified)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
-                        <CheckCircle2 size={13} /> Assessment Completed
+                  {/* AI Evaluation */}
+                  {q.evaluation && (
+                    <div style={{
+                      marginTop: '0.85rem',
+                      paddingTop: '0.85rem',
+                      borderTop: '1px solid var(--border-subtle)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.4rem'
+                    }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        <strong>AI Evaluation Reasoning:</strong> {q.evaluation.reasoning}
                       </div>
-                      <p className="text-secondary text-xs" style={{ marginTop: '0.25rem' }}>
-                        {currentSelectedReq.verificationResult}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Next Step Action Buttons */}
-                  <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <span className="section-title" style={{ fontSize: '0.7rem' }}>Next Actions</span>
-
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      {(currentSelectedReq.status === 'UNVERIFIED' || currentSelectedReq.status === 'PARTIAL' || currentSelectedReq.status === 'GAP') && (
-                        <button
-                          className="btn btn-primary btn-sm"
-                          style={{ flex: 1 }}
-                          onClick={() => setShowVerifyModal(currentSelectedReq.requirementId)}
-                        >
-                          <Shield size={13} /> Prove This Skill
-                        </button>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--verified)' }}>
+                        <strong>Demonstrated Strength:</strong> {q.evaluation.strengths}
+                      </div>
+                      {q.evaluation.weaknesses && (
+                        <div style={{ fontSize: '0.82rem', color: 'var(--gap)' }}>
+                          <strong>Identified Weakness:</strong> {q.evaluation.weaknesses}
+                        </div>
                       )}
-
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        style={{ flex: 1 }}
-                        onClick={() => {
-                          setShowOverride(currentSelectedReq.requirementId);
-                          setOverrideForm({ status: '', reason: '' });
-                        }}
-                      >
-                        Override Status
-                      </button>
                     </div>
-                  </div>
+                  )}
                 </div>
-              ) : (
-                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  Select a requirement on the left to inspect cited proof and evaluation reasoning.
-                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ==================== FINAL EXPLAINABLE CANDIDATE ANALYSIS ==================== */}
+        {finalAnalysis && (
+          <section className="card mb-4" style={{ padding: '1.75rem 2rem', border: '1.5px solid var(--border-strong)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'var(--accent)', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '3px' }}>FINAL REPORT</span>
+              <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.35rem', fontWeight: 600, margin: 0 }}>
+                Explainable Candidate Analysis
+              </h2>
+            </div>
+
+            <div style={{
+              background: 'var(--accent-light)',
+              padding: '1rem 1.25rem',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+              marginBottom: '1.25rem'
+            }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase' }}>
+                AI Recommendation
+              </span>
+              <p style={{ margin: '0.25rem 0 0', fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>
+                {finalAnalysis.recommendation}
+              </p>
+              <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                {finalAnalysis.summary}
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+              {/* Strengths */}
+              <div style={{ background: 'var(--surface-secondary)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--verified)', textTransform: 'uppercase' }}>
+                  Verified Strengths
+                </span>
+                <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.2rem', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                  {finalAnalysis.keyStrengths.map((s, i) => (
+                    <li key={i} style={{ marginBottom: '0.3rem' }}>{s}</li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Skill Gaps */}
+              <div style={{ background: 'var(--surface-secondary)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--gap)', textTransform: 'uppercase' }}>
+                  Skill Gaps & Unverified Claims
+                </span>
+                <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.2rem', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                  {finalAnalysis.skillGaps.length > 0 ? (
+                    finalAnalysis.skillGaps.map((g, i) => (
+                      <li key={i} style={{ marginBottom: '0.3rem' }}>{g}</li>
+                    ))
+                  ) : (
+                    <li style={{ color: 'var(--text-muted)' }}>No critical mandatory skill gaps detected.</li>
+                  )}
+                </ul>
+              </div>
+
+              {/* Concerns for HR */}
+              <div style={{ background: 'var(--surface-secondary)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--partial)', textTransform: 'uppercase' }}>
+                  Areas for Interview Clarification
+                </span>
+                <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.2rem', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                  {finalAnalysis.concerns.map((c, i) => (
+                    <li key={i} style={{ marginBottom: '0.3rem' }}>{c}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ==================== HR FINAL DECISION BAR ==================== */}
+        <section className="card mb-4" style={{ padding: '1.75rem 2rem', background: '#FAFAF7', border: '1.5px solid var(--accent)' }}>
+          <div style={{ marginBottom: '1rem' }}>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.35rem', fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>
+              HR Final Decision
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+              The AI supports decision-making with explainable evidence. Final recruitment authorization resides solely with the human HR reviewer.
+            </p>
+          </div>
+
+          {app.hrDecision && (
+            <div style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.85rem 1.25rem',
+              marginBottom: '1.25rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <CheckCircle2 size={16} style={{ color: 'var(--verified)' }} />
+                <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>
+                  Current Recorded Decision: <span style={{ color: 'var(--accent)' }}>{app.hrDecision.decision}</span>
+                </span>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                  Decided by {app.hrDecision.decidedBy} on {new Date(app.hrDecision.decidedAt).toLocaleString()}
+                </span>
+              </div>
+              {app.hrDecision.notes && (
+                <p style={{ margin: '0.4rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  <strong>Reviewer Justification:</strong> {app.hrDecision.notes}
+                </p>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {activeTab === 'workspace' && !analysis && (
-          <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
-            <EmptyState
-              icon={<Play size={24} style={{ color: 'var(--text-muted)' }} />}
-              title="Candidate Evaluation Not Generated"
-              text="Run automated evidence extraction to compare resume claims against vacancy criteria."
-              action={
-                <button className="btn btn-primary btn-sm" onClick={handleRunAI}>
-                  <Play size={13} /> Run Evidence Evaluation
-                </button>
-              }
+          {/* Decision Notes Input */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
+              HR Reviewer Notes / Justification (Logged to immutable audit trail)
+            </label>
+            <textarea
+              className="form-input"
+              rows={2}
+              placeholder="Provide context or rationale for this candidate status decision..."
+              value={hrNotes}
+              onChange={e => setHrNotes(e.target.value)}
             />
           </div>
-        )}
 
-        {/* TAB 2: Full Traceability Matrix Table */}
-        {activeTab === 'matrix' && analysis && (
+          {/* Decision Buttons */}
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-primary"
+              onClick={() => handleHRDecision('Shortlisted')}
+              style={{ background: 'var(--accent)' }}
+            >
+              Shortlist Candidate
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => handleHRDecision('Selected')}
+              style={{ background: 'var(--verified-bg)', color: 'var(--verified)', borderColor: 'var(--verified-border)' }}
+            >
+              Select for Offer
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => handleHRDecision('Under HR Review')}
+            >
+              Keep Under Review
+            </button>
+            <button
+              className="btn btn-danger"
+              onClick={() => handleHRDecision('Rejected')}
+            >
+              Reject Application
+            </button>
+          </div>
+        </section>
+
+        {/* ==================== AUDIT TRAIL ==================== */}
+        <section className="card" style={{ padding: '1.75rem 2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+            <Clock size={18} style={{ color: 'var(--text-muted)' }} />
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.15rem', fontWeight: 600, margin: 0 }}>
+              Explainable Decision Audit Trail
+            </h3>
+          </div>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+            Immutable trace answering: "How did the system and reviewers arrive at this candidate outcome?"
+          </p>
+
+          <div className="audit-timeline">
+            {app.auditTrail.map((entry) => (
+              <div key={entry.id} className="audit-entry">
+                <div className="audit-entry-header">
+                  <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
+                    {entry.action}
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    {new Date(entry.timestamp).toLocaleString()}
+                  </span>
+                </div>
+                <p style={{ margin: '0.25rem 0', fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
+                  {entry.details}
+                </p>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  Actor: <strong>{entry.actor}</strong> ({entry.actorRole})
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      {/* ==================== RESUME TEXT MODAL ==================== */}
+      <Modal
+        isOpen={showResumeModal}
+        onClose={() => setShowResumeModal(false)}
+        title={`Uploaded Resume — ${app.candidateName || app.candidateEmail}`}
+        wide
+      >
+        <div style={{
+          maxHeight: '60vh',
+          overflowY: 'auto',
+          background: 'var(--surface-secondary)',
+          padding: '1.25rem',
+          borderRadius: 'var(--radius-sm)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.82rem',
+          lineHeight: 1.6,
+          whiteSpace: 'pre-wrap',
+          color: 'var(--text-primary)'
+        }}>
+          {app.resumeContent || 'No resume content text available.'}
+        </div>
+      </Modal>
+
+      {/* ==================== CANDIDATE COMPARISON MODAL ==================== */}
+      <Modal
+        isOpen={showComparisonModal}
+        onClose={() => setShowComparisonModal(false)}
+        title={`Candidate Comparison — ${vacancy.title}`}
+        wide
+      >
+        <div>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+            Requirement-level side-by-side comparison for transparent hiring calibration.
+          </p>
+
           <div className="table-container">
             <table className="table">
               <thead>
                 <tr>
-                  <th style={{ width: '22%' }}>Position Requirement</th>
-                  <th style={{ width: '15%' }}>Evaluation</th>
-                  <th style={{ width: '45%' }}>Cited Document Excerpt</th>
-                  <th style={{ width: '18%' }}>Source Location</th>
+                  <th>Job Requirement</th>
+                  <th style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}>
+                    {app.candidateName} (Current)
+                  </th>
+                  {otherApplications.map(other => (
+                    <th key={other.id}>{other.candidateName || other.candidateEmail}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {analysis.requirements.map(req => (
-                  <tr key={req.requirementId}>
-                    <td style={{ fontWeight: 600 }}>{req.requirement}</td>
-                    <td>
-                      <RequirementBadge status={req.status} />
+                <tr>
+                  <td><strong>Round 1 Resume Match</strong></td>
+                  <td style={{ fontWeight: 700, color: 'var(--accent)' }}>{round1?.overallScore || 0}%</td>
+                  {otherApplications.map(other => (
+                    <td key={other.id} style={{ fontWeight: 600 }}>{other.round1Match?.overallScore || 0}%</td>
+                  ))}
+                </tr>
+                <tr>
+                  <td><strong>Round 2 Assessment</strong></td>
+                  <td style={{ fontWeight: 700, color: 'var(--accent)' }}>{round2?.overallScore || 0}%</td>
+                  {otherApplications.map(other => (
+                    <td key={other.id} style={{ fontWeight: 600 }}>{other.round2Assessment?.overallScore || 0}%</td>
+                  ))}
+                </tr>
+                <tr>
+                  <td><strong>Final Fit Score</strong></td>
+                  <td style={{ fontWeight: 700, color: 'var(--accent)' }}>{finalAnalysis?.overallFitScore || 0}%</td>
+                  {otherApplications.map(other => (
+                    <td key={other.id} style={{ fontWeight: 600 }}>{other.finalAnalysis?.overallFitScore || 0}%</td>
+                  ))}
+                </tr>
+                {/* Individual requirements */}
+                {(vacancy.structuredRequirements || []).map(req => (
+                  <tr key={req.id}>
+                    <td>{req.name}</td>
+                    <td style={{ background: 'var(--accent-light)' }}>
+                      {round1?.requirements.find(r => r.requirement === req.name) ? (
+                        <RequirementBadge status={round1.requirements.find(r => r.requirement === req.name)!.status} />
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      )}
                     </td>
-                    <td>
-                      <span className="text-secondary text-sm" style={{ fontStyle: req.evidence !== 'No evidence found' ? 'normal' : 'italic' }}>
-                        "{req.evidence}"
-                      </span>
-                    </td>
-                    <td>
-                      <span className="text-xs text-muted" style={{ fontFamily: 'var(--font-mono)' }}>
-                        {req.evidenceSource}
-                      </span>
-                    </td>
+                    {otherApplications.map(other => {
+                      const matchReq = other.round1Match?.requirements.find(r => r.requirement === req.name);
+                      return (
+                        <td key={other.id}>
+                          {matchReq ? (
+                            <RequirementBadge status={matchReq.status} />
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>—</span>
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-
-        {/* TAB 3: Verification Tasks */}
-        {activeTab === 'verification' && (
-          <div>
-            {appChallenges.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                {appChallenges.map(ch => (
-                  <div key={ch.id} className="card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <span style={{ fontWeight: 600, fontSize: '0.9375rem' }}>{ch.requirement}</span>
-                          <span className="tag" style={{ textTransform: 'capitalize', fontSize: '0.75rem' }}>{ch.type.replace('_', ' ')}</span>
-                        </div>
-                      </div>
-                      <span className={`badge ${ch.status === 'evaluated' ? 'badge-verified' : ch.status === 'submitted' ? 'badge-partial' : 'badge-unverified'}`}>
-                        <span className="badge-dot" />
-                        {ch.status}
-                      </span>
-                    </div>
-
-                    <div style={{ padding: '0.85rem 1rem', background: 'var(--surface-secondary)', borderRadius: 'var(--radius-sm)', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
-                      <span className="section-title" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '0.2rem' }}>Task Prompt</span>
-                      <span className="text-secondary">{ch.question}</span>
-                    </div>
-
-                    {ch.candidateAnswer && (
-                      <div style={{ padding: '0.85rem 1rem', background: 'var(--surface-secondary)', borderLeft: '3px solid var(--accent)', borderRadius: '0 var(--radius-sm) var(--radius-sm) 0', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
-                        <span className="section-title" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '0.2rem' }}>Candidate Submitted Demonstration</span>
-                        <span className="text-primary">{ch.candidateAnswer}</span>
-                      </div>
-                    )}
-
-                    {ch.aiEvaluation && (
-                      <div style={{ padding: '0.85rem 1rem', background: 'var(--verified-bg)', border: '1px solid var(--verified-border)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--verified)', textTransform: 'uppercase' }}>Validation Assessment</span>
-                          <span className="badge badge-verified">{ch.evaluationResult}</span>
-                        </div>
-                        <span className="text-secondary text-sm">{ch.aiEvaluation}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
-                <EmptyState
-                  icon={<Shield size={24} style={{ color: 'var(--text-muted)' }} />}
-                  title="No Verification Tasks Active"
-                  text="When candidate claims are unverified or partial, you can generate practical tasks from the Review Workspace to establish proof."
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB 4: Audit Trail */}
-        {activeTab === 'audit' && (
-          <div className="card">
-            <span className="section-title" style={{ display: 'block', marginBottom: '1rem' }}>
-              Immutable Evaluation Log
-            </span>
-
-            <div className="audit-timeline">
-              {app.auditTrail.map(entry => (
-                <div key={entry.id} className="audit-entry">
-                  <div className="audit-entry-header">
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem' }}>{entry.action}</span>
-                    <span className="text-xs text-muted" style={{ fontFamily: 'var(--font-mono)' }}>
-                      {new Date(entry.timestamp).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="text-secondary text-sm" style={{ marginTop: '0.2rem' }}>{entry.details}</div>
-                  <div className="text-xs text-muted" style={{ marginTop: '0.35rem' }}>
-                    Operator: <strong>{entry.actor}</strong> ({entry.actorRole})
-                  </div>
-                  {entry.previousValue && entry.newValue && (
-                    <div style={{ marginTop: '0.35rem', display: 'flex', gap: '0.35rem', alignItems: 'center', fontSize: '0.75rem' }}>
-                      <span className="badge badge-unverified">{entry.previousValue}</span>
-                      <span>→</span>
-                      <span className="badge badge-verified">{entry.newValue}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Override Evaluation Modal */}
-      <Modal isOpen={!!showOverride} onClose={() => setShowOverride(null)} title="Override Requirement Evaluation">
-        {showOverride && (() => {
-          const req = analysis?.requirements.find(r => r.requirementId === showOverride);
-          return (
-            <div>
-              <p className="text-secondary text-sm mb-3">
-                Reviewing requirement: <strong className="text-primary">{req?.requirement}</strong>
-              </p>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="over-stat">Corrected Evaluation</label>
-                <select
-                  id="over-stat"
-                  className="form-select"
-                  value={overrideForm.status}
-                  onChange={e => setOverrideForm({ ...overrideForm, status: e.target.value as RequirementStatus })}
-                >
-                  <option value="">Select new status</option>
-                  <option value="VERIFIED">VERIFIED — Requirement satisfied with verified proof</option>
-                  <option value="PARTIAL">PARTIAL — Substantial knowledge or adjacent experience</option>
-                  <option value="UNVERIFIED">UNVERIFIED — Insufficient evidence to validate</option>
-                  <option value="GAP">GAP — Definite missing competency</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="over-justification">
-                  Reviewer Justification <span className="required">*</span>
-                </label>
-                <textarea
-                  id="over-justification"
-                  className="form-textarea"
-                  rows={3}
-                  placeholder="Explain why the automated evaluation should be changed (e.g. validated during live technical interview)..."
-                  value={overrideForm.reason}
-                  onChange={e => setOverrideForm({ ...overrideForm, reason: e.target.value })}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.5rem' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowOverride(null)}>
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => handleOverride(showOverride)}
-                  disabled={!overrideForm.status || !overrideForm.reason}
-                >
-                  Commit Override
-                </button>
-              </div>
-            </div>
-          );
-        })()}
-      </Modal>
-
-      {/* Prove This Skill Modal */}
-      <Modal isOpen={!!showVerifyModal} onClose={() => setShowVerifyModal(null)} title="Initiate Proof Verification">
-        {showVerifyModal && (() => {
-          const req = analysis?.requirements.find(r => r.requirementId === showVerifyModal);
-          return (
-            <div>
-              <p className="text-secondary text-sm mb-3">
-                Select a verification mechanism to validate candidate competence in <strong className="text-primary">{req?.requirement}</strong>:
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                <button
-                  className="card"
-                  style={{ cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.95rem 1.15rem' }}
-                  onClick={() => handleCreateChallenge(showVerifyModal, req?.requirement || '', 'challenge')}
-                >
-                  <div style={{ padding: '0.45rem', background: 'var(--surface-secondary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                    <Code size={18} color="var(--accent)" />
-                  </div>
-                  <div>
-                    <span style={{ fontWeight: 600, fontSize: '0.875rem', display: 'block', color: 'var(--text-primary)' }}>Technical Challenge</span>
-                    <span className="text-secondary text-xs">Generate a practical exercise or code snippet for the candidate to solve</span>
-                  </div>
-                </button>
-
-                <button
-                  className="card"
-                  style={{ cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.95rem 1.15rem' }}
-                  onClick={() => handleCreateChallenge(showVerifyModal, req?.requirement || '', 'interview')}
-                >
-                  <div style={{ padding: '0.45rem', background: 'var(--surface-secondary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                    <MessageSquare size={18} color="var(--accent)" />
-                  </div>
-                  <div>
-                    <span style={{ fontWeight: 600, fontSize: '0.875rem', display: 'block', color: 'var(--text-primary)' }}>Targeted Inquiry</span>
-                    <span className="text-secondary text-xs">Direct question regarding specific implementation nuances and real scenarios</span>
-                  </div>
-                </button>
-
-                <button
-                  className="card"
-                  style={{ cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.95rem 1.15rem' }}
-                  onClick={() => handleCreateChallenge(showVerifyModal, req?.requirement || '', 'evidence_upload')}
-                >
-                  <div style={{ padding: '0.45rem', background: 'var(--surface-secondary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                    <Upload size={18} color="var(--accent)" />
-                  </div>
-                  <div>
-                    <span style={{ fontWeight: 600, fontSize: '0.875rem', display: 'block', color: 'var(--text-primary)' }}>Evidence Document Request</span>
-                    <span className="text-secondary text-xs">Request credentials, repository links, certification numbers, or portfolio samples</span>
-                  </div>
-                </button>
-
-                <button
-                  className="card"
-                  style={{ cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.95rem 1.15rem' }}
-                  onClick={() => handleCreateChallenge(showVerifyModal, req?.requirement || '', 'work_sample')}
-                >
-                  <div style={{ padding: '0.45rem', background: 'var(--surface-secondary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                    <ClipboardList size={18} color="var(--accent)" />
-                  </div>
-                  <div>
-                    <span style={{ fontWeight: 600, fontSize: '0.875rem', display: 'block', color: 'var(--text-primary)' }}>Work Demonstration Sample</span>
-                    <span className="text-secondary text-xs">Request documentation or artifacts from past real-world project contributions</span>
-                  </div>
-                </button>
-              </div>
-            </div>
-          );
-        })()}
-      </Modal>
-
-      {/* Status Update Modal */}
-      <Modal isOpen={showStatusModal} onClose={() => setShowStatusModal(false)} title="Update Application Status">
-        <div>
-          <div className="form-group">
-            <label className="form-label">Current Candidate State</label>
-            <div>
-              <StatusBadge status={app.status} />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="cand-status-new">Transition To</label>
-            <select
-              id="cand-status-new"
-              className="form-select"
-              value={newStatus}
-              onChange={e => setNewStatus(e.target.value as ApplicationStatus)}
-            >
-              <option value="">Select candidate status</option>
-              {statuses.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.5rem' }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowStatusModal(false)}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleStatusUpdate}
-              disabled={!newStatus}
-            >
-              Save Status Transition
-            </button>
           </div>
         </div>
       </Modal>

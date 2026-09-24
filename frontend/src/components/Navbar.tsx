@@ -28,14 +28,13 @@ export default function Navbar() {
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate('/', { replace: true });
   };
 
   return (
     <nav className="navbar">
       <div className="navbar-brand" onClick={() => navigate(auth.isAuthenticated ? getDashboardPath() : '/')}>
-        <span className="navbar-logo">HireProof</span>
-        <span className="navbar-badge">AI</span>
+        <span className="navbar-logo" style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, letterSpacing: '-0.02em' }}>HIREPROOF</span>
       </div>
 
       <div className="navbar-actions">
@@ -58,9 +57,10 @@ export default function Navbar() {
               className="btn btn-ghost btn-sm"
               onClick={handleLogout}
               title="Sign out of workspace"
-              style={{ color: 'var(--text-muted)' }}
+              style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
             >
               <LogOut size={14} />
+              <span>Logout</span>
             </button>
           </>
         )}
