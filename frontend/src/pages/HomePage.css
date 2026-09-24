@@ -1,0 +1,225 @@
+/* ==================== Home Page ==================== */
+.home-page {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+/* ==================== Header ==================== */
+.home-header {
+  padding: 4rem 2rem 2rem;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.home-brand {
+  font-family: var(--font-heading);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.375rem;
+  letter-spacing: -0.02em;
+}
+
+.home-brand-ai {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  vertical-align: super;
+  margin-left: 0.25rem;
+}
+
+.home-tagline {
+  font-family: var(--font-heading);
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.home-description {
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+  max-width: 540px;
+}
+
+/* ==================== Workflow ==================== */
+.home-workflow {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem;
+}
+
+.home-workflow-title {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+.workflow-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.workflow-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.workflow-step:last-child {
+  border-bottom: none;
+}
+
+.workflow-step-number {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  min-width: 1.5rem;
+  padding-top: 0.125rem;
+}
+
+.workflow-step-content {
+  flex: 1;
+}
+
+.workflow-step-label {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  margin-bottom: 0.125rem;
+}
+
+.workflow-step-desc {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ==================== Role Entry ==================== */
+.home-roles {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 2rem 3rem;
+}
+
+.home-roles-title {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.75rem;
+}
+
+.role-entries {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.role-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+.role-entry:last-child {
+  border-bottom: none;
+}
+
+.role-entry:hover {
+  background: var(--surface-hover);
+}
+
+.role-entry-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.role-entry-name {
+  font-weight: 500;
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+}
+
+.role-entry-desc {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-top: 0.125rem;
+}
+
+.role-entry-arrow {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ==================== Footer ==================== */
+.home-footer {
+  padding: 2rem;
+  text-align: center;
+  border-top: 1px solid var(--border-subtle);
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.home-footer-brand {
+  font-family: var(--font-heading);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.home-footer p {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+/* ==================== Responsive ==================== */
+@media (max-width: 640px) {
+  .home-header {
+    padding: 2.5rem 1.5rem 1.5rem;
+  }
+
+  .home-brand {
+    font-size: 1.375rem;
+  }
+
+  .home-workflow,
+  .home-roles {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
