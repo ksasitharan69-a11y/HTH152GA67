@@ -4,7 +4,7 @@ import { useApp } from '../../context/AppContext';
 import Navbar from '../../components/Navbar';
 import { Toast, Modal, EmptyState } from '../../components/SharedComponents';
 import type { CEO } from '../../types';
-import { Plus, Trash2, Edit3, Globe, MapPin, X } from 'lucide-react';
+import { Plus, Trash2, Edit3, Globe, MapPin, X, Building2, Users, Layers } from 'lucide-react';
 
 export default function CEODashboard() {
   const navigate = useNavigate();
@@ -57,7 +57,7 @@ export default function CEODashboard() {
       companyId: ceo.companyId,
       companyName: company?.name || '',
     });
-    setToast({ message: 'HR account created successfully', type: 'success' });
+    setToast({ message: 'HR account provisioned successfully', type: 'success' });
     setShowCreateHR(false);
     setHrForm({ name: '', email: '', password: '', department: '' });
   };
@@ -79,9 +79,9 @@ export default function CEODashboard() {
   };
 
   const handleDeleteHR = (hrId: string, hrName: string) => {
-    if (confirm(`Remove HR account for ${hrName}?`)) {
+    if (confirm(`Remove HR reviewer credentials for ${hrName}?`)) {
       deleteHR(hrId);
-      setToast({ message: `HR account for ${hrName} removed`, type: 'info' });
+      setToast({ message: `HR reviewer credentials removed for ${hrName}`, type: 'info' });
     }
   };
 
@@ -91,61 +91,58 @@ export default function CEODashboard() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="page-content">
-        {/* Header */}
-        <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+        {/* Editorial Executive Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
           <div>
-            <h1>Organization Overview</h1>
-            <p className="text-secondary">
-              Managing <strong>{company?.name}</strong> • Workspace Administrator: <strong>{ceo.name}</strong>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Company Administration
+            </span>
+            <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.875rem', fontWeight: 600, marginTop: '0.2rem', color: 'var(--text-primary)' }}>
+              {company?.name || 'Company Overview'}
+            </h1>
+            <p className="text-secondary" style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>
+              Administrator: <strong>{ceo.name}</strong> · {company?.location || 'Headquarters'}
             </p>
           </div>
+
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button className="btn btn-secondary btn-sm" onClick={() => setShowEditCompany(true)}>
-              <Edit3 size={14} /> Edit Company
+              <Edit3 size={13} /> Edit Profile
             </button>
             <button className="btn btn-primary btn-sm" onClick={() => setShowCreateHR(true)}>
-              <Plus size={14} /> Provision HR Account
+              <Plus size={13} /> Provision HR Reviewer
             </button>
           </div>
         </div>
 
-        {/* Inline Data Summary Strip */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '1rem',
-          padding: '1.25rem 1.5rem',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-md)',
-          marginBottom: '2rem'
-        }}>
-          <div>
-            <div className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Organization</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{company?.name || '—'}</div>
+        {/* Editorial Metric Strip */}
+        <div className="metric-strip">
+          <div className="metric-item">
+            <div className="metric-label">Organization</div>
+            <div className="metric-value">{company?.name || '—'}</div>
           </div>
-          <div>
-            <div className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Departments</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{company?.departments.length || 0}</div>
+          <div className="metric-item">
+            <div className="metric-label">Departments</div>
+            <div className="metric-value">{company?.departments.length || 0}</div>
           </div>
-          <div>
-            <div className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Active HR Reviewers</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{companyHRs.length}</div>
+          <div className="metric-item">
+            <div className="metric-label">Provisioned Reviewers</div>
+            <div className="metric-value">{companyHRs.length}</div>
           </div>
-          <div>
-            <div className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>Location</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{company?.location || 'Unspecified'}</div>
+          <div className="metric-item">
+            <div className="metric-label">Industry</div>
+            <div className="metric-value" style={{ fontSize: '1.125rem' }}>{company?.industry || 'Technology'}</div>
           </div>
         </div>
 
-        {/* HR Accounts Section */}
+        {/* HR Reviewers Section */}
         <div className="section-header">
           <div>
             <h2 className="section-title">HR Reviewers</h2>
-            <p className="section-subtitle">Recruitment operators with access to post vacancies and verify candidates</p>
+            <p className="section-subtitle">Operators authorized to evaluate candidates against evidence</p>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={() => setShowCreateHR(true)}>
-            <Plus size={14} /> Add Reviewer
+            <Plus size={13} /> New Account
           </button>
         </div>
 
@@ -155,8 +152,9 @@ export default function CEODashboard() {
               <thead>
                 <tr>
                   <th>Reviewer Name</th>
-                  <th>Email Address</th>
-                  <th>Department</th>
+                  <th>Contact Email</th>
+                  <th>Assigned Department</th>
+                  <th>Status</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -164,25 +162,31 @@ export default function CEODashboard() {
                 {companyHRs.map(hr => (
                   <tr key={hr.id}>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                         <div style={{
                           width: 28, height: 28, borderRadius: 'var(--radius-sm)',
-                          background: 'var(--surface-elevated)', border: '1px solid var(--border)',
+                          background: 'var(--surface-secondary)', border: '1px solid var(--border)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)'
+                          fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent)'
                         }}>
                           {hr.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                         </div>
-                        <span style={{ fontWeight: 500 }}>{hr.name}</span>
+                        <span style={{ fontWeight: 600 }}>{hr.name}</span>
                       </div>
                     </td>
                     <td className="text-secondary">{hr.email}</td>
                     <td>
-                      <span className="badge badge-unverified">{hr.department}</span>
+                      <span className="tag" style={{ fontSize: '0.75rem' }}>{hr.department}</span>
+                    </td>
+                    <td>
+                      <span className="badge badge-verified">
+                        <span className="badge-dot" />
+                        Active
+                      </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <button className="btn btn-ghost btn-sm" style={{ color: 'var(--error)' }} onClick={() => handleDeleteHR(hr.id, hr.name)}>
-                        <Trash2 size={13} /> Remove
+                        <Trash2 size={13} /> Revoke
                       </button>
                     </td>
                   </tr>
@@ -193,12 +197,12 @@ export default function CEODashboard() {
         ) : (
           <div className="card mb-4" style={{ padding: '2.5rem', textAlign: 'center' }}>
             <EmptyState
-              icon={<Plus size={24} style={{ color: 'var(--text-muted)' }} />}
+              icon={<Users size={24} />}
               title="No HR Reviewers Provisioned"
-              text="Create an HR account to delegate job postings and candidate evaluation."
+              text="Add your first HR reviewer to assign department recruiting responsibilities."
               action={
                 <button className="btn btn-primary btn-sm" onClick={() => setShowCreateHR(true)}>
-                  <Plus size={14} /> Provision First HR
+                  <Plus size={13} /> Provision HR Reviewer
                 </button>
               }
             />
@@ -208,23 +212,18 @@ export default function CEODashboard() {
         {/* Departments Section */}
         <div className="section-header">
           <div>
-            <h2 className="section-title">Organization Departments</h2>
-            <p className="section-subtitle">Functional divisions available when creating vacancies</p>
+            <h2 className="section-title">Functional Departments</h2>
+            <p className="section-subtitle">Recruiting divisions available for vacancy assignment</p>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={() => setShowAddDept(true)}>
-            <Plus size={14} /> Add Department
+            <Plus size={13} /> Add Department
           </button>
         </div>
 
         <div className="card mb-4" style={{ padding: '1.25rem 1.5rem' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
             {company?.departments.map(dept => (
-              <span key={dept} style={{
-                display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
-                padding: '0.35rem 0.75rem', background: 'var(--surface-elevated)',
-                border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
-                fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-primary)'
-              }}>
+              <span key={dept} className="tag" style={{ padding: '0.3rem 0.65rem', fontSize: '0.8125rem' }}>
                 {dept}
                 {dept !== 'General' && (
                   <button
@@ -241,64 +240,55 @@ export default function CEODashboard() {
                 )}
               </span>
             ))}
-            {(!company?.departments || company.departments.length === 0) && (
-              <span className="text-muted text-sm">No departments configured yet.</span>
-            )}
           </div>
         </div>
 
-        {/* Company Profile Details */}
+        {/* Organization Overview Metadata */}
         {(company?.description || company?.industry || company?.location || company?.website) && (
-          <>
-            <div className="section-header">
-              <h2 className="section-title">Organization Profile</h2>
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowEditCompany(true)}>
-                <Edit3 size={13} /> Edit
-              </button>
-            </div>
-            <div className="card" style={{ padding: '1.5rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: company.description ? '1rem' : 0 }}>
-                {company.industry && (
-                  <div>
-                    <span className="text-xs text-muted" style={{ display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Industry</span>
-                    <span style={{ fontSize: '0.9375rem', color: 'var(--text-primary)' }}>{company.industry}</span>
-                  </div>
-                )}
-                {company.location && (
-                  <div>
-                    <span className="text-xs text-muted" style={{ display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Location</span>
-                    <span style={{ fontSize: '0.9375rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                      <MapPin size={13} style={{ color: 'var(--text-muted)' }} /> {company.location}
-                    </span>
-                  </div>
-                )}
-                {company.website && (
-                  <div>
-                    <span className="text-xs text-muted" style={{ display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Website</span>
-                    <a href={company.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.9375rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                      <Globe size={13} /> {company.website}
-                    </a>
-                  </div>
-                )}
-              </div>
-              {company.description && (
-                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem', marginTop: '0.5rem' }}>
-                  <span className="text-xs text-muted" style={{ display: 'block', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.25rem' }}>About Organization</span>
-                  <p className="text-secondary" style={{ fontSize: '0.875rem', lineHeight: 1.6 }}>{company.description}</p>
+          <div className="card">
+            <span className="section-title" style={{ display: 'block', marginBottom: '0.85rem' }}>
+              Corporate Record
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
+              {company.industry && (
+                <div>
+                  <span className="metric-label" style={{ display: 'block' }}>Sector</span>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>{company.industry}</span>
+                </div>
+              )}
+              {company.location && (
+                <div>
+                  <span className="metric-label" style={{ display: 'block' }}>Primary Hub</span>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <MapPin size={13} style={{ color: 'var(--text-muted)' }} /> {company.location}
+                  </span>
+                </div>
+              )}
+              {company.website && (
+                <div>
+                  <span className="metric-label" style={{ display: 'block' }}>Corporate URL</span>
+                  <a href={company.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Globe size={13} /> {company.website}
+                  </a>
                 </div>
               )}
             </div>
-          </>
+            {company.description && (
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem', marginTop: '1rem' }}>
+                <p className="text-secondary text-sm" style={{ lineHeight: 1.6 }}>{company.description}</p>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
-      {/* Create HR Modal */}
-      <Modal isOpen={showCreateHR} onClose={() => setShowCreateHR(false)} title="Provision HR Account">
+      {/* Provision HR Modal */}
+      <Modal isOpen={showCreateHR} onClose={() => setShowCreateHR(false)} title="Provision HR Reviewer">
         <form onSubmit={handleCreateHR}>
           <div className="form-group">
-            <label className="form-label" htmlFor="hr-name">Reviewer Full Name <span className="required">*</span></label>
+            <label className="form-label" htmlFor="hr-prov-name">Full Name <span className="required">*</span></label>
             <input
-              id="hr-name"
+              id="hr-prov-name"
               type="text"
               className="form-input"
               placeholder="e.g. Rachel Miller"
@@ -307,9 +297,9 @@ export default function CEODashboard() {
             />
           </div>
           <div className="form-group">
-            <label className="form-label" htmlFor="hr-email">Work Email <span className="required">*</span></label>
+            <label className="form-label" htmlFor="hr-prov-email">Work Email <span className="required">*</span></label>
             <input
-              id="hr-email"
+              id="hr-prov-email"
               type="email"
               className="form-input"
               placeholder="rachel@company.com"
@@ -318,20 +308,20 @@ export default function CEODashboard() {
             />
           </div>
           <div className="form-group">
-            <label className="form-label" htmlFor="hr-pwd">Initial Password <span className="required">*</span></label>
+            <label className="form-label" htmlFor="hr-prov-pwd">Password <span className="required">*</span></label>
             <input
-              id="hr-pwd"
+              id="hr-prov-pwd"
               type="password"
               className="form-input"
-              placeholder="Enter strong password"
+              placeholder="Enter secure initial password"
               value={hrForm.password}
               onChange={e => setHrForm({ ...hrForm, password: e.target.value })}
             />
           </div>
           <div className="form-group">
-            <label className="form-label" htmlFor="hr-dept">Assigned Department <span className="required">*</span></label>
+            <label className="form-label" htmlFor="hr-prov-dept">Assigned Department <span className="required">*</span></label>
             <select
-              id="hr-dept"
+              id="hr-prov-dept"
               className="form-select"
               value={hrForm.department}
               onChange={e => setHrForm({ ...hrForm, department: e.target.value })}
@@ -348,7 +338,7 @@ export default function CEODashboard() {
               Cancel
             </button>
             <button type="submit" className="btn btn-primary">
-              Provision Account
+              Provision Reviewer
             </button>
           </div>
         </form>
@@ -358,12 +348,12 @@ export default function CEODashboard() {
       <Modal isOpen={showAddDept} onClose={() => setShowAddDept(false)} title="Add Department">
         <form onSubmit={handleAddDept}>
           <div className="form-group">
-            <label className="form-label" htmlFor="dept-name">Department Name</label>
+            <label className="form-label" htmlFor="dept-input">Department Name</label>
             <input
-              id="dept-name"
+              id="dept-input"
               type="text"
               className="form-input"
-              placeholder="e.g. Infrastructure, Legal, Sales"
+              placeholder="e.g. Platform Engineering, Design"
               value={newDept}
               onChange={e => setNewDept(e.target.value)}
               autoFocus
@@ -384,31 +374,31 @@ export default function CEODashboard() {
       <Modal isOpen={showEditCompany} onClose={() => setShowEditCompany(false)} title="Edit Organization Profile">
         <form onSubmit={handleUpdateCompany}>
           <div className="form-group">
-            <label className="form-label" htmlFor="co-industry">Industry Sector</label>
+            <label className="form-label" htmlFor="co-ind">Industry Sector</label>
             <input
-              id="co-industry"
+              id="co-ind"
               type="text"
               className="form-input"
-              placeholder="e.g. Financial Technology, Cloud Services"
+              placeholder="e.g. Cloud Security"
               value={companyForm.industry}
               onChange={e => setCompanyForm({ ...companyForm, industry: e.target.value })}
             />
           </div>
           <div className="form-group">
-            <label className="form-label" htmlFor="co-loc">Primary Location</label>
+            <label className="form-label" htmlFor="co-location">Primary Hub Location</label>
             <input
-              id="co-loc"
+              id="co-location"
               type="text"
               className="form-input"
-              placeholder="e.g. New York, NY"
+              placeholder="e.g. San Francisco, CA"
               value={companyForm.location}
               onChange={e => setCompanyForm({ ...companyForm, location: e.target.value })}
             />
           </div>
           <div className="form-group">
-            <label className="form-label" htmlFor="co-web">Company Website</label>
+            <label className="form-label" htmlFor="co-url">Website</label>
             <input
-              id="co-web"
+              id="co-url"
               type="text"
               className="form-input"
               placeholder="https://company.com"
@@ -417,12 +407,12 @@ export default function CEODashboard() {
             />
           </div>
           <div className="form-group">
-            <label className="form-label" htmlFor="co-desc">Organization Overview</label>
+            <label className="form-label" htmlFor="co-bio">Overview</label>
             <textarea
-              id="co-desc"
+              id="co-bio"
               className="form-textarea"
               rows={3}
-              placeholder="Brief description of the organization and operations"
+              placeholder="Brief organizational summary"
               value={companyForm.description}
               onChange={e => setCompanyForm({ ...companyForm, description: e.target.value })}
             />

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import './HomePage.css';
 
 export default function HomePage() {
@@ -7,96 +7,100 @@ export default function HomePage() {
 
   return (
     <div className="home-page">
-      {/* Header */}
-      <header className="home-header">
-        <h1 className="home-brand">
-          HireProof<span className="home-brand-ai">AI</span>
+      {/* Editorial Navigation */}
+      <nav className="home-nav">
+        <div style={{ display: 'flex', alignItems: 'baseline' }}>
+          <span className="home-logo">HireProof</span>
+          <span className="home-logo-sub">AI</span>
+        </div>
+        <div className="home-nav-meta">
+          Evidence-Based Recruitment Operations
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="home-hero-section">
+        <span className="home-hero-badge">Verifiable Candidate Evaluation</span>
+        <h1 className="home-hero-title">
+          Recruitment decisions,<br />
+          with evidence behind them.
         </h1>
-        <p className="home-tagline">
-          Don't Just Match. Prove. Verify. Explain.
+        <p className="home-hero-sub">
+          Most recruitment systems tell you whether a resume matches a role.
+          HireProof shows why — mapping every claim directly to verifiable proof,
+          flagging unverified gaps, and giving hiring teams traceable reasoning.
         </p>
-        <p className="home-description">
-          A recruitment workspace that evaluates candidates against job requirements,
-          provides evidence for every matching decision, identifies gaps, and supports
-          human reviewers with traceable reasoning.
-        </p>
-      </header>
 
-      {/* Workflow */}
-      <section className="home-workflow">
-        <div className="home-workflow-title">How it works</div>
-        <div className="workflow-steps">
-          <div className="workflow-step">
-            <span className="workflow-step-number">01</span>
-            <div className="workflow-step-content">
-              <div className="workflow-step-label">Match</div>
-              <div className="workflow-step-desc">
-                Does the candidate's resume appear to satisfy each job requirement?
-              </div>
-            </div>
-          </div>
-          <div className="workflow-step">
-            <span className="workflow-step-number">02</span>
-            <div className="workflow-step-content">
-              <div className="workflow-step-label">Prove</div>
-              <div className="workflow-step-desc">
-                What specific evidence from the resume supports each claim?
-              </div>
-            </div>
-          </div>
-          <div className="workflow-step">
-            <span className="workflow-step-number">03</span>
-            <div className="workflow-step-content">
-              <div className="workflow-step-label">Verify</div>
-              <div className="workflow-step-desc">
-                Can the candidate demonstrate the skill through an assessment or evidence upload?
-              </div>
-            </div>
-          </div>
-          <div className="workflow-step">
-            <span className="workflow-step-number">04</span>
-            <div className="workflow-step-content">
-              <div className="workflow-step-label">Explain</div>
-              <div className="workflow-step-desc">
-                Why did the system reach this conclusion? Every decision is traceable.
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Role Entry Points */}
-      <section className="home-roles">
-        <div className="home-roles-title">Sign in</div>
-        <div className="role-entries">
-          <button className="role-entry" onClick={() => navigate('/ceo/login')}>
-            <div className="role-entry-info">
-              <span className="role-entry-name">CEO</span>
-              <span className="role-entry-desc">Manage your company and HR accounts</span>
-            </div>
-            <ChevronRight size={16} className="role-entry-arrow" />
+        {/* Direct Role Entry Points */}
+        <div className="home-hero-actions">
+          <button className="home-role-btn primary" onClick={() => navigate('/hr/login')}>
+            <span>Sign in as HR Reviewer</span>
+            <span className="home-role-tag">Workspaces & Review</span>
+            <ArrowRight size={15} />
           </button>
-          <button className="role-entry" onClick={() => navigate('/hr/login')}>
-            <div className="role-entry-info">
-              <span className="role-entry-name">HR</span>
-              <span className="role-entry-desc">Post vacancies and review candidates</span>
-            </div>
-            <ChevronRight size={16} className="role-entry-arrow" />
+          <button className="home-role-btn" onClick={() => navigate('/candidate/login')}>
+            <span>Sign in as Candidate</span>
+            <span className="home-role-tag">Applications & Evidence</span>
+            <ArrowRight size={15} />
           </button>
-          <button className="role-entry" onClick={() => navigate('/candidate/login')}>
-            <div className="role-entry-info">
-              <span className="role-entry-name">Candidate</span>
-              <span className="role-entry-desc">Browse roles and apply with your resume</span>
-            </div>
-            <ChevronRight size={16} className="role-entry-arrow" />
+          <button className="home-role-btn" onClick={() => navigate('/ceo/login')}>
+            <span>Sign in as CEO</span>
+            <span className="home-role-tag">Org Administration</span>
+            <ArrowRight size={15} />
           </button>
         </div>
       </section>
 
-      {/* Footer */}
+      {/* Horizontal Workflow Section */}
+      <section className="home-workflow-section">
+        <div className="home-workflow-divider">
+          <h2 className="home-workflow-title">The Evaluation Methodology</h2>
+          <span className="home-workflow-desc">Traceable from initial parse to final hiring decision</span>
+        </div>
+
+        <div className="home-steps-grid">
+          <div className="home-step-col">
+            <span className="home-step-num">01</span>
+            <h3 className="home-step-heading">MATCH</h3>
+            <p className="home-step-body">
+              Compare candidate profile directly against mandatory job requirements to establish baseline eligibility.
+            </p>
+          </div>
+
+          <div className="home-step-col">
+            <span className="home-step-num">02</span>
+            <h3 className="home-step-heading">PROVE</h3>
+            <p className="home-step-body">
+              Extract exact source citations, project contributions, and documented experience supporting each claim.
+            </p>
+          </div>
+
+          <div className="home-step-col">
+            <span className="home-step-num">03</span>
+            <h3 className="home-step-heading">VERIFY</h3>
+            <p className="home-step-body">
+              Generate targeted practical challenges or request work samples for skills that lack definitive proof.
+            </p>
+          </div>
+
+          <div className="home-step-col">
+            <span className="home-step-num">04</span>
+            <h3 className="home-step-heading">EXPLAIN</h3>
+            <p className="home-step-body">
+              Maintain an immutable audit trail with explicit reasoning for every verification and human reviewer override.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Editorial Footer */}
       <footer className="home-footer">
-        <div className="home-footer-brand">HireProof AI</div>
-        <p>Evidence-based candidate evaluation</p>
+        <div>
+          <strong>HireProof AI</strong> — Professional Evidence Review Workspace
+        </div>
+        <div>
+          Built for recruiters and hiring managers who demand traceable accuracy.
+        </div>
       </footer>
     </div>
   );

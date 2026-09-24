@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { LogOut, Home } from 'lucide-react';
+import { LogOut, LayoutDashboard } from 'lucide-react';
 
 export default function Navbar() {
   const { auth, logout } = useApp();
@@ -20,6 +20,12 @@ export default function Navbar() {
     return auth.user.email;
   };
 
+  const getDashboardPath = () => {
+    if (auth.role === 'ceo') return '/ceo/dashboard';
+    if (auth.role === 'hr') return '/hr/dashboard';
+    return '/candidate/dashboard';
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -27,30 +33,34 @@ export default function Navbar() {
 
   return (
     <nav className="navbar">
-      <div className="navbar-brand" onClick={() => navigate('/')}>
-        <span className="navbar-logo">HireProof AI</span>
+      <div className="navbar-brand" onClick={() => navigate(auth.isAuthenticated ? getDashboardPath() : '/')}>
+        <span className="navbar-logo">HireProof</span>
+        <span className="navbar-badge">AI</span>
       </div>
 
       <div className="navbar-actions">
         {auth.isAuthenticated && (
           <>
-            <div className="navbar-user">
+            <button className="btn btn-ghost btn-sm" onClick={() => navigate(getDashboardPath())}>
+              <LayoutDashboard size={14} />
+              <span>Workspace</span>
+            </button>
+
+            <div className="navbar-user" style={{ paddingLeft: '0.5rem', borderLeft: '1px solid var(--border)' }}>
               <div className="navbar-user-avatar">{getUserInitials()}</div>
-              <div className="navbar-user-info">
+              <div className="navbar-user-info" style={{ display: 'flex', flexDirection: 'column' }}>
                 <span className="navbar-user-name">{getUserName()}</span>
-                <span className="navbar-user-role">{auth.role}</span>
+                <span className="navbar-user-role">{auth.role} reviewer</span>
               </div>
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={() => {
-              if (auth.role === 'ceo') navigate('/ceo/dashboard');
-              else if (auth.role === 'hr') navigate('/hr/dashboard');
-              else navigate('/candidate/dashboard');
-            }}>
-              <Home size={15} />
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={handleLogout}>
-              <LogOut size={15} />
-              Logout
+
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={handleLogout}
+              title="Sign out of workspace"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <LogOut size={14} />
             </button>
           </>
         )}

@@ -1,225 +1,217 @@
-/* ==================== Home Page ==================== */
+/* ==================== Home Page (Editorial Direction) ==================== */
 .home-page {
   min-height: 100vh;
-  background: var(--bg);
+  background-color: var(--bg);
+  display: flex;
+  flex-direction: column;
 }
 
-/* ==================== Header ==================== */
-.home-header {
-  padding: 4rem 2rem 2rem;
-  max-width: 640px;
-  margin: 0 auto;
+.home-nav {
+  padding: 1.5rem 3rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
 }
 
-.home-brand {
+.home-logo {
   font-family: var(--font-heading);
-  font-size: 1.75rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 0.375rem;
   letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 
-.home-brand-ai {
-  font-size: 0.875rem;
-  font-weight: 400;
+.home-logo-sub {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-light);
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm);
+  margin-left: 0.4rem;
+}
+
+.home-nav-meta {
+  font-size: 0.8125rem;
   color: var(--text-muted);
-  vertical-align: super;
-  margin-left: 0.25rem;
 }
 
-.home-tagline {
-  font-family: var(--font-heading);
-  font-size: 1.125rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  margin-bottom: 1rem;
-  line-height: 1.5;
-}
-
-.home-description {
-  font-size: 0.9375rem;
-  color: var(--text-muted);
-  line-height: 1.7;
-  max-width: 540px;
-}
-
-/* ==================== Workflow ==================== */
-.home-workflow {
-  max-width: 640px;
+/* ==================== Editorial Hero ==================== */
+.home-hero-section {
+  max-width: 1140px;
   margin: 0 auto;
-  padding: 2.5rem 2rem;
+  padding: 4.5rem 2rem 3rem;
+  width: 100%;
+}
+
+.home-hero-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+.home-hero-title {
+  font-family: var(--font-heading);
+  font-size: clamp(2.5rem, 5vw, 3.75rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  max-width: 820px;
+  margin-bottom: 1.5rem;
+}
+
+.home-hero-sub {
+  font-size: 1.125rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  max-width: 640px;
+  margin-bottom: 2.5rem;
+}
+
+.home-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 4rem;
+}
+
+.home-role-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-subtle);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.home-role-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.home-role-btn.primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+.home-role-btn.primary:hover {
+  background: var(--accent-hover);
+}
+
+.home-role-tag {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.home-role-btn.primary .home-role-tag {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* ==================== Editorial Horizontal Workflow ==================== */
+.home-workflow-section {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0 2rem 5rem;
+  width: 100%;
+}
+
+.home-workflow-divider {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  padding-top: 1.5rem;
+  margin-bottom: 2.5rem;
 }
 
 .home-workflow-title {
   font-family: var(--font-heading);
-  font-size: 1rem;
+  font-size: 1.25rem;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 1.25rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 0.6875rem;
+}
+
+.home-workflow-desc {
+  font-size: 0.8125rem;
   color: var(--text-muted);
 }
 
-.workflow-steps {
+.home-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.75rem;
+  position: relative;
+}
+
+@media (max-width: 900px) {
+  .home-steps-grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+}
+
+.home-step-col {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  overflow: hidden;
+  border-top: 2px solid var(--border-strong);
+  padding-top: 1.25rem;
 }
 
-.workflow-step {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border-subtle);
+.home-step-col:hover {
+  border-top-color: var(--accent);
 }
 
-.workflow-step:last-child {
-  border-bottom: none;
-}
-
-.workflow-step-number {
+.home-step-num {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  min-width: 1.5rem;
-  padding-top: 0.125rem;
-}
-
-.workflow-step-content {
-  flex: 1;
-}
-
-.workflow-step-label {
-  font-weight: 600;
   font-size: 0.875rem;
-  color: var(--text-primary);
-  margin-bottom: 0.125rem;
-}
-
-.workflow-step-desc {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-  line-height: 1.5;
-}
-
-/* ==================== Role Entry ==================== */
-.home-roles {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 0 2rem 3rem;
-}
-
-.home-roles-title {
-  font-size: 0.6875rem;
   font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 0.75rem;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
 }
 
-.role-entries {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  overflow: hidden;
-}
-
-.role-entry {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.875rem 1.25rem;
-  border-bottom: 1px solid var(--border-subtle);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-  background: none;
-  border-left: none;
-  border-right: none;
-  border-top: none;
-  text-align: left;
-  width: 100%;
-  font-family: inherit;
-  font-size: inherit;
-  color: inherit;
-}
-
-.role-entry:last-child {
-  border-bottom: none;
-}
-
-.role-entry:hover {
-  background: var(--surface-hover);
-}
-
-.role-entry-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.role-entry-name {
-  font-weight: 500;
-  font-size: 0.9375rem;
+.home-step-heading {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 600;
   color: var(--text-primary);
+  margin-bottom: 0.65rem;
 }
 
-.role-entry-desc {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-  margin-top: 0.125rem;
-}
-
-.role-entry-arrow {
-  color: var(--text-muted);
-  flex-shrink: 0;
+.home-step-body {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
 }
 
 /* ==================== Footer ==================== */
 .home-footer {
-  padding: 2rem;
-  text-align: center;
-  border-top: 1px solid var(--border-subtle);
-  max-width: 640px;
-  margin: 0 auto;
-}
-
-.home-footer-brand {
-  font-family: var(--font-heading);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 0.25rem;
-}
-
-.home-footer p {
-  color: var(--text-muted);
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  background: var(--surface-secondary);
+  padding: 2rem 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 0.8125rem;
-}
-
-/* ==================== Responsive ==================== */
-@media (max-width: 640px) {
-  .home-header {
-    padding: 2.5rem 1.5rem 1.5rem;
-  }
-
-  .home-brand {
-    font-size: 1.375rem;
-  }
-
-  .home-workflow,
-  .home-roles {
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
-  }
+  color: var(--text-muted);
 }
