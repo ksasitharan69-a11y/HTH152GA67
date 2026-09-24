@@ -1,0 +1,20 @@
+{
+  "drill_down_questions": [
+    "In your e-commerce backend, how did you prevent duplicate order creation if a user double-clicked the 'Place Order' button rapidly, or if two concurrent API requests processed the same cart simultaneously?",
+    "When your Express server started up, how did you handle scenarios where MongoDB was temporarily unreachable or dropped connection mid-operation? Did you implement any retry logic or circuit breakers?",
+    "With 500 active users, how did you handle database indexing for your product search and order history queries to ensure response times remained under 200ms?"
+  ],
+  "broken_code_snippet": "const express = require('express');\nconst router = express.Router();\nconst Order = require('../models/Order');\nconst Product = require('../models/Product');\n\nrouter.post('/checkout', async (req, res) => {\n    const { userId, cartItems } = req.body;\n    \n    for (let item of cartItems) {\n        const product = await Product.findById(item.productId);\n        product.stock -= item.quantity;\n        await product.save();\n    }\n    \n    const newOrder = new Order({ userId, items: cartItems, status: 'pending' });\n    await newOrder.save();\n    \n    res.status(201).json(newOrder);\n});",
+  "answer_key": {
+    "bug_1": {
+      "description": "Unhandled Promise Rejection / Lack of Error Handling. The async route handler does not wrap database operations in a try/catch block.",
+      "impact": "If MongoDB is down, times out, or a validation fails, the promise will reject. In modern Node.js environments, this causes an unhandled promise rejection which crashes the entire server process.",
+      "expected_candidate_response": "The candidate should point out the missing try/catch block or Express error-handling middleware wrapper. They should suggest wrapping the code in a try/catch block and passing the error to 'next(err)' so Express can handle it gracefully without crashing."
+    },
+    "bug_2": {
+      "description": "Race Condition and Lack of Atomicity/Transactions. Inventory is decremented and the order is saved sequentially without a database transaction.",
+      "impact": "If the process fails halfway through the loop, some products will have their stock decremented while others won't, and the order will never be created (data inconsistency). Additionally, concurrent requests can read the same stock level before it is saved, leading to overselling (negative stock).",
+      "expected_candidate_response": "The candidate should identify the race condition and lack of atomicity. They should suggest using MongoDB Transactions (sessions) to ensure all-or-nothing execution, and implementing an idempotency key or unique constraint to prevent duplicate order submissions."
+    }
+  }
+}
