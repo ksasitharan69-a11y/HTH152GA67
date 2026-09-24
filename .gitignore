@@ -1,0 +1,39 @@
+# Environments
+.venv/
+backend/.venv/
+env/
+venv/
+ENV/
+
+# Environment Variables & Secrets
+.env
+backend/.env
+*.env
+*.pem
+*.key
+
+# Database
+*.db
+*.sqlite3
+hireproof.db
+backend/hireproof.db
+
+# Python caches
+__pycache__/
+backend/**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+backend/.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Uploads (Keep folder, ignore actual candidate files)
+backend/uploads/resumes/*
+!backend/uploads/resumes/.gitkeep
