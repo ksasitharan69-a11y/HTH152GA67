@@ -124,22 +124,28 @@ export default function VacancyDetail() {
   };
 
   // Helper to simulate candidate submission for testing
-  const handleSimulateRound2 = (appId: string) => {
+  const handleSimulateRound2 = async (appId: string) => {
     setIsSimulating(appId);
-    let questions = generateAssessmentQuestions(appId);
-    const answers = questions.map(q => ({
-      questionId: q.id,
-      answer: `Technical solution for ${q.targetSkill}: I implemented asynchronous connection pooling and indexed database queries to optimize response latency under high concurrency.`
-    }));
+    try {
+      const questions = await generateAssessmentQuestions(appId);
+      const answers = questions.map((q: any) => ({
+        questionId: q.id,
+        answer: `Technical solution for ${q.targetSkill || 'competency'}: I implemented asynchronous connection pooling and indexed database queries to optimize response latency under high concurrency.`
+      }));
 
-    setTimeout(() => {
-      submitAssessmentAnswers(appId, answers);
+      await submitAssessmentAnswers(appId, answers);
       setIsSimulating(null);
       setToast({
         message: 'Round 2 Technical Assessment simulated and evaluated in real time!',
         type: 'success'
       });
-    }, 500);
+    } catch {
+      setIsSimulating(null);
+      setToast({
+        message: 'Failed to simulate assessment evaluation.',
+        type: 'error'
+      });
+    }
   };
 
   return (

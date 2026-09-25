@@ -147,3 +147,66 @@ def get_final_analysis(
         raise HTTPException(status_code=404, detail="Application not found.")
 
     return final_analyzer.generate_final_report(app)
+
+# -------------------------------------------------------------
+# Target Architecture Alias Endpoints
+# -------------------------------------------------------------
+
+@router.post("/evaluate/{application_id}", response_model=ApplicationAnalysisResponse, summary="Alias: Evaluate Application")
+async def evaluate_application_alias(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return await analyze_application(application_id, current_user, db)
+
+@router.get("/evaluation/{application_id}", response_model=FinalAnalysisResponse, summary="Alias: Get Application Evaluation")
+def get_evaluation_alias(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return get_final_analysis(application_id, current_user, db)
+
+@router.get("/requirements/{application_id}", summary="Get Structured Requirements for Application")
+def get_application_requirements(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    app = db.query(Application).filter(Application.id == application_id).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found.")
+    reqs = db.query(JobRequirement).filter(JobRequirement.vacancy_id == app.vacancy_id).all()
+    return [
+        {
+            "id": r.id,
+            "requirement_text": r.requirement_text,
+            "requirement_type": r.requirement_type.value,
+            "importance": r.importance
+        }
+        for r in reqs
+    ]
+
+@router.get("/evidence/{application_id}", summary="Get Verified Evidence Citations for Application")
+def get_application_evidence(
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    app = db.query(Application).filter(Application.id == application_id).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found.")
+    from app.database.models import Evidence
+    evidences = db.query(Evidence).filter(Evidence.application_id == application_id).all()
+    return [
+        {
+            "id": e.id,
+            "requirement_id": e.requirement_id,
+            "source_type": e.source_type.value,
+            "source_text": e.source_text,
+            "source_location": e.source_location,
+            "confidence": e.confidence
+        }
+        for e in evidences
+    ]

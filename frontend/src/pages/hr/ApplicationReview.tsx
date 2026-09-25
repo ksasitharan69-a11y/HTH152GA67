@@ -5,7 +5,7 @@ import Navbar from '../../components/Navbar';
 import { Toast, Modal, RequirementBadge, StatusBadge, EmptyState, ScoreRing } from '../../components/SharedComponents';
 import type { MatchStatus } from '../../types';
 import {
-  ArrowLeft, Play, ShieldAlert,
+  ArrowLeft, Play, ShieldAlert, ShieldCheck,
   ChevronDown, ChevronUp, FileText, CheckCircle2,
   Clock, GitCompare, MessageSquare
 } from 'lucide-react';
@@ -19,8 +19,21 @@ export default function ApplicationReview() {
     vacancies,
     runRound1Matching,
     generateAssessmentQuestions,
-    recordHRDecision
+    recordHRDecision,
+    askAuditDefense,
   } = useApp();
+
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [expandedReqs, setExpandedReqs] = useState<Record<string, boolean>>({});
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [showComparisonModal, setShowComparisonModal] = useState(false);
+  const [hrNotes, setHrNotes] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'ALL' | MatchStatus>('ALL');
+
+  // Audit Defense state
+  const [defenseQuestion, setDefenseQuestion] = useState('');
+  const [defenseAnswer, setDefenseAnswer] = useState('');
+  const [isAskingDefense, setIsAskingDefense] = useState(false);
 
   useEffect(() => {
     if (!auth.isAuthenticated || !auth.user) {
@@ -34,13 +47,6 @@ export default function ApplicationReview() {
 
   const app = applications.find(a => a.id === applicationId);
   const vacancy = app ? vacancies.find(v => v.id === app.vacancyId) : null;
-
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [expandedReqs, setExpandedReqs] = useState<Record<string, boolean>>({});
-  const [showResumeModal, setShowResumeModal] = useState(false);
-  const [showComparisonModal, setShowComparisonModal] = useState(false);
-  const [hrNotes, setHrNotes] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'ALL' | MatchStatus>('ALL');
 
   if (!app || !vacancy) {
     return (
@@ -82,26 +88,45 @@ export default function ApplicationReview() {
     setExpandedReqs(update);
   };
 
-  const handleRunRound1 = () => {
+  const handleRunRound1 = async () => {
     try {
-      runRound1Matching(app.id);
-      setToast({ message: 'Round 1: Resume–JD matching & evidence extraction completed.', type: 'success' });
+      await runRound1Matching(app.id);
+      setToast({ message: 'Round 1: Real-time AI evidence extraction and matching completed.', type: 'success' });
     } catch {
       setToast({ message: 'Error processing resume. Check resume content.', type: 'error' });
     }
   };
 
-  const handleHRDecision = (decision: 'Shortlisted' | 'Under HR Review' | 'Rejected' | 'Selected') => {
-    recordHRDecision(app.id, decision, hrNotes, auth.user?.name || 'HR Reviewer');
-    if ((decision === 'Shortlisted' || decision === 'Selected') && !app.round2Assessment) {
-      try {
-        generateAssessmentQuestions(app.id);
-      } catch (err) {
-        console.error(err);
+  const handleHRDecision = async (decision: 'Shortlisted' | 'Under HR Review' | 'Rejected' | 'Selected') => {
+    try {
+      await recordHRDecision(app.id, decision, hrNotes, auth.user?.name || 'HR Reviewer');
+      if ((decision === 'Shortlisted' || decision === 'Selected') && !app.round2Assessment) {
+        try {
+          await generateAssessmentQuestions(app.id);
+        } catch (err) {
+          console.error(err);
+        }
       }
+      setToast({ message: `Candidate successfully marked as "${decision}"`, type: 'success' });
+      setHrNotes('');
+    } catch (err: any) {
+      setToast({ message: err?.message || 'Failed to record decision.', type: 'error' });
     }
-    setToast({ message: `Candidate successfully marked as "${decision}"`, type: 'success' });
-    setHrNotes('');
+  };
+
+  const handleAskAuditDefense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!defenseQuestion.trim()) return;
+    setIsAskingDefense(true);
+    setDefenseAnswer('');
+    try {
+      const answer = await askAuditDefense(app.id, defenseQuestion.trim());
+      setDefenseAnswer(answer);
+    } catch (err: any) {
+      setDefenseAnswer('Unable to query Audit Defense Agent: ' + (err?.message || 'Server error.'));
+    } finally {
+      setIsAskingDefense(false);
+    }
   };
 
   const filteredRequirements = round1?.requirements.filter(r => {
@@ -674,6 +699,49 @@ export default function ApplicationReview() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* ==================== AUDIT DEFENSE Q&A AGENT ==================== */}
+        <section className="card" style={{ padding: '1.75rem 2rem', marginTop: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <ShieldCheck size={20} style={{ color: 'var(--accent)' }} />
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.15rem', fontWeight: 600, margin: 0 }}>
+              AI Audit Defense Q&amp;A Agent
+            </h3>
+          </div>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+            Ask natural language compliance or explainability questions grounded strictly in this candidate's verified evidence, assessment results, and recruiter overrides.
+          </p>
+
+          <form onSubmit={handleAskAuditDefense} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="e.g. Why was this candidate scored partially on database requirements?"
+              value={defenseQuestion}
+              onChange={(e) => setDefenseQuestion(e.target.value)}
+              disabled={isAskingDefense}
+              style={{ flex: 1, minWidth: '240px' }}
+            />
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isAskingDefense || !defenseQuestion.trim()}
+            >
+              {isAskingDefense ? 'Querying Defense...' : 'Ask Defense Agent'}
+            </button>
+          </form>
+
+          {defenseAnswer && (
+            <div style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', padding: '1rem 1.25rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
+                Grounded Defense Explanation
+              </div>
+              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                {defenseAnswer}
+              </p>
+            </div>
+          )}
         </section>
       </div>
 

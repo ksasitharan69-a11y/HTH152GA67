@@ -13,7 +13,7 @@ export default function CEOLogin() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -22,12 +22,17 @@ export default function CEOLogin() {
       return;
     }
 
-    const success = login('ceo', email, password);
-    if (success) {
-      setToast({ message: 'Authentication successful', type: 'success' });
-      setTimeout(() => navigate('/ceo/dashboard'), 350);
-    } else {
-      setError('Invalid credentials. Please verify your email and password.');
+    try {
+      const success = await login('ceo', email, password);
+      if (success) {
+        setToast({ message: 'Authentication successful', type: 'success' });
+        setTimeout(() => navigate('/ceo/dashboard'), 350);
+      } else {
+        setError('Invalid credentials. Please verify your email and password.');
+        setToast({ message: 'Authentication failed', type: 'error' });
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Invalid credentials. Please verify your email and password.');
       setToast({ message: 'Authentication failed', type: 'error' });
     }
   };

@@ -13,10 +13,9 @@ export default function CEORegister() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [step, setStep] = useState<'register' | 'otp' | 'done'>('register');
   const [otp, setOtp] = useState('');
-  const [generatedOtp] = useState(() => Math.floor(100000 + Math.random() * 900000).toString());
-  const [ceoId, setCeoId] = useState('');
+  const [backendOtp, setBackendOtp] = useState('');
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -30,20 +29,30 @@ export default function CEORegister() {
       return;
     }
 
-    const ceo = registerCEO(form);
-    setCeoId(ceo.id);
-    setStep('otp');
-    setToast({ message: `Verification code sent to ${form.email} (Demo code: ${generatedOtp})`, type: 'info' });
+    try {
+      const res = await registerCEO(form);
+      setBackendOtp(res.otp_preview || '');
+      setStep('otp');
+      setToast({
+        message: res.otp_preview
+          ? `Verification code sent to ${form.email} (Testing OTP: ${res.otp_preview})`
+          : `Verification code sent to ${form.email}`,
+        type: 'info'
+      });
+    } catch (err: any) {
+      setError(err?.message || 'Registration failed');
+    }
   };
 
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp === generatedOtp) {
-      verifyCEO(ceoId);
+    setError('');
+    try {
+      await verifyCEO(form.email, otp);
       setStep('done');
       setToast({ message: 'Organization verified and registered', type: 'success' });
-    } else {
-      setError('Invalid verification code. Please enter the demo code shown.');
+    } catch (err: any) {
+      setError(err?.message || 'Invalid verification code. Please check the code.');
     }
   };
 
@@ -98,7 +107,7 @@ export default function CEORegister() {
                     style={{ textAlign: 'center', fontSize: '1.375rem', letterSpacing: '0.35em', fontFamily: 'var(--font-mono)' }}
                     autoFocus
                   />
-                  <p className="form-hint">Demo code for testing: <strong>{generatedOtp}</strong></p>
+                  {backendOtp && <p className="form-hint">Testing code: <strong>{backendOtp}</strong></p>}
                 </div>
 
                 {error && <p className="form-error mb-2">{error}</p>}

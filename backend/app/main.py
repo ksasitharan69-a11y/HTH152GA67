@@ -7,7 +7,10 @@ from fastapi.exceptions import RequestValidationError
 
 from app.core.config import settings
 from app.database.database import init_db
-from app.routers import auth, ceo, hr, candidate, ai
+from app.routers import (
+    auth, ceo, hr, candidate, ai,
+    assessments, audit, vacancies, applications
+)
 
 # Setup logging
 logging.basicConfig(
@@ -82,7 +85,11 @@ app.include_router(auth.router)
 app.include_router(ceo.router)
 app.include_router(hr.router)
 app.include_router(candidate.router)
+app.include_router(vacancies.router)
+app.include_router(applications.router)
 app.include_router(ai.router)
+app.include_router(assessments.router)
+app.include_router(audit.router)
 
 @app.get("/", tags=["Health"])
 def health_check():

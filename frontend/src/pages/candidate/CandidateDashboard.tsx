@@ -42,22 +42,7 @@ export default function CandidateDashboard() {
     }
   }, [auth.isAuthenticated, candidate, navigate]);
 
-  if (!auth.isAuthenticated || !candidate) {
-    return null;
-  }
-
-  const myApps = getApplicationsByCandidate(candidate.id);
-  const selectedInRound1Apps = myApps.filter(isCandidateSelectedInRound1);
-  const pendingAssessments = selectedInRound1Apps.filter(a => a.round2Assessment?.status !== 'completed');
-
   const [activeTab, setActiveTab] = useState<'browse' | 'applications' | 'assessment'>('browse');
-
-  useEffect(() => {
-    if (activeTab === 'assessment' && selectedInRound1Apps.length === 0) {
-      setActiveTab('applications');
-    }
-  }, [activeTab, selectedInRound1Apps.length]);
-
   const [selectedCompany, setSelectedCompany] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('ALL');
   const [selectedVacancy, setSelectedVacancy] = useState<Vacancy | null>(null);
@@ -68,12 +53,22 @@ export default function CandidateDashboard() {
   const [resumeFile, setResumeFile] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Assessment taking state
-  const [activeAssessmentAppId, setActiveAssessmentAppId] = useState<string>(
-    selectedInRound1Apps[0]?.id || ''
-  );
+  const [activeAssessmentAppId, setActiveAssessmentAppId] = useState<string>('');
   const [answersState, setAnswersState] = useState<Record<string, string>>({});
+
+  const myApps = candidate ? getApplicationsByCandidate(candidate.id) : [];
+  const selectedInRound1Apps = myApps.filter(isCandidateSelectedInRound1);
+  const pendingAssessments = selectedInRound1Apps.filter(a => a.round2Assessment?.status !== 'completed');
+
+  useEffect(() => {
+    if (activeTab === 'assessment' && selectedInRound1Apps.length === 0) {
+      setActiveTab('applications');
+    }
+  }, [activeTab, selectedInRound1Apps.length]);
+
+  if (!auth.isAuthenticated || !candidate) {
+    return null;
+  }
 
   const currentCompanyObj = companies.find(c => c.id === selectedCompany);
   const departmentsList = currentCompanyObj?.departments || [];
@@ -113,7 +108,7 @@ export default function CandidateDashboard() {
     }
   };
 
-  const handleApply = () => {
+  const handleApply = async () => {
     if (!selectedVacancy || selectedVacancy.status === 'closed') {
       setToast({ message: 'This vacancy has concluded recruitment rounds and is now closed.', type: 'error' });
       setShowApply(false);
@@ -124,31 +119,35 @@ export default function CandidateDashboard() {
       setToast({ message: 'Please provide resume content for evaluation', type: 'error' });
       return;
     }
-    const newApp = submitApplication(
-      candidate.id,
-      candidate.email,
-      candidate.name || 'Candidate',
-      selectedVacancy.id,
-      resumeContent,
-      resumeFile || 'Resume.txt'
-    );
-
-    // Run Round 1 Matching & conditionally unlock Round 2
     try {
-      const match = runRound1Matching(newApp.id);
-      const updatedApp = getApplication(newApp.id) || newApp;
-      if (match.selectedInRound1 || match.overallScore >= 60) {
-        generateAssessmentQuestions(newApp.id);
-        setActiveAssessmentAppId(newApp.id);
-        setToast({ message: `Round 1 Complete (${match.overallScore}% match)! Review your selection reason below to proceed to Round 2.`, type: 'success' });
-      } else {
-        setToast({ message: `Round 1 Complete (${match.overallScore}% match). Review your evaluation reason below.`, type: 'info' });
+      const newApp = await submitApplication(
+        candidate.id,
+        candidate.email,
+        candidate.name || 'Candidate',
+        selectedVacancy.id,
+        resumeContent,
+        resumeFile || 'Resume.txt'
+      );
+
+      // Run Round 1 Matching & conditionally unlock Round 2
+      try {
+        const match = await runRound1Matching(newApp.id);
+        const updatedApp = getApplication(newApp.id) || newApp;
+        if (match.selectedInRound1 || match.overallScore >= 60) {
+          await generateAssessmentQuestions(newApp.id);
+          setActiveAssessmentAppId(newApp.id);
+          setToast({ message: `Round 1 Complete (${match.overallScore}% match)! Review your selection reason below to proceed to Round 2.`, type: 'success' });
+        } else {
+          setToast({ message: `Round 1 Complete (${match.overallScore}% match). Review your evaluation reason below.`, type: 'info' });
+        }
+        setShowAppDetail(updatedApp);
+        setActiveTab('applications');
+      } catch {
+        setToast({ message: 'Application submitted for HR evaluation.', type: 'info' });
+        setActiveTab('applications');
       }
-      setShowAppDetail(updatedApp);
-      setActiveTab('applications');
-    } catch {
-      setToast({ message: 'Application submitted for HR evaluation.', type: 'info' });
-      setActiveTab('applications');
+    } catch (err: any) {
+      setToast({ message: err?.message || 'Failed to submit application.', type: 'error' });
     }
 
     setShowApply(false);
@@ -193,7 +192,7 @@ B.Tech in Computer Science & Engineering (2018 - 2022)`;
 
   const currentAssessmentApp = selectedInRound1Apps.find(a => a.id === activeAssessmentAppId) || selectedInRound1Apps[0];
 
-  const handleSubmitAssessment = (appId: string) => {
+  const handleSubmitAssessment = async (appId: string) => {
     if (!currentAssessmentApp?.round2Assessment) return;
 
     const answersArray = currentAssessmentApp.round2Assessment.questions.map(q => ({
@@ -207,9 +206,13 @@ B.Tech in Computer Science & Engineering (2018 - 2022)`;
       return;
     }
 
-    submitAssessmentAnswers(appId, answersArray);
-    setToast({ message: 'Round 2 Technical Assessment submitted! AI evaluated your responses. HR has received your profile.', type: 'success' });
-    setActiveTab('applications');
+    try {
+      await submitAssessmentAnswers(appId, answersArray);
+      setToast({ message: 'Round 2 Technical Assessment submitted! AI evaluated your responses. HR has received your profile.', type: 'success' });
+      setActiveTab('applications');
+    } catch (err: any) {
+      setToast({ message: err?.message || 'Failed to submit assessment.', type: 'error' });
+    }
   };
 
   const handleFillSampleAnswers = () => {

@@ -66,20 +66,25 @@ export default function CandidateDecisionReason() {
     (application.status !== 'Rejected' && round1Score >= 60);
   const isRejected = application.status === 'Rejected' || (!isSelected && round1Score < 60);
 
-  const handleSaveDecision = (decisionType: 'Selected' | 'Shortlisted' | 'Under HR Review' | 'Rejected') => {
+  const handleSaveDecision = async (decisionType: 'Selected' | 'Shortlisted' | 'Under HR Review' | 'Rejected') => {
     setIsSubmitting(true);
-    recordHRDecision(
-      application.id,
-      decisionType,
-      hrNotes.trim() || `HR evaluated candidate as ${decisionType} based on AI predicted score and evidence reasoning.`,
-      hr?.name || 'HR Reviewer'
-    );
-    setSelectedDecision(decisionType);
-    setIsSubmitting(false);
-    setToast({
-      message: `Candidate marked as "${decisionType}" in real time. State synchronized across portals.`,
-      type: decisionType === 'Rejected' ? 'info' : 'success'
-    });
+    try {
+      await recordHRDecision(
+        application.id,
+        decisionType,
+        hrNotes.trim() || `HR evaluated candidate as ${decisionType} based on AI predicted score and evidence reasoning.`,
+        hr?.name || 'HR Reviewer'
+      );
+      setSelectedDecision(decisionType);
+      setToast({
+        message: `Candidate marked as "${decisionType}" in real time. State synchronized across portals.`,
+        type: decisionType === 'Rejected' ? 'info' : 'success'
+      });
+    } catch (err: any) {
+      setToast({ message: err?.message || 'Failed to save decision.', type: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const verifiedRequirements = application.round1Match?.requirements.filter(r => r.status === 'MATCH') || [];

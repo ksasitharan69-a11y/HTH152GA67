@@ -64,6 +64,16 @@ export default function HRDashboard() {
     }
   }, [auth.isAuthenticated, hr, navigate]);
 
+  const [showCreate, setShowCreate] = useState(false);
+  const [activeTab, setActiveTab] = useState<'vacancies' | 'all' | 'assessment' | 'review' | 'shortlisted' | 'rejected'>('vacancies');
+  const [vacancyFilter, setVacancyFilter] = useState<'active' | 'closed'>('active');
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Vacancy creation: Job Description upload only
+  const [jdFileName, setJdFileName] = useState('');
+  const [jdText, setJdText] = useState('');
+  const [vError, setVError] = useState('');
+
   if (!auth.isAuthenticated || !hr) {
     return null;
   }
@@ -83,16 +93,6 @@ export default function HRDashboard() {
   const underReview = myApplications.filter(a => a.status === 'Under HR Review');
   const shortlisted = myApplications.filter(a => a.status === 'Shortlisted' || a.status === 'Selected');
   const rejected = myApplications.filter(a => a.status === 'Rejected');
-
-  const [showCreate, setShowCreate] = useState(false);
-  const [activeTab, setActiveTab] = useState<'vacancies' | 'all' | 'assessment' | 'review' | 'shortlisted' | 'rejected'>('vacancies');
-  const [vacancyFilter, setVacancyFilter] = useState<'active' | 'closed'>('active');
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-
-  // Vacancy creation: Job Description upload only
-  const [jdFileName, setJdFileName] = useState('');
-  const [jdText, setJdText] = useState('');
-  const [vError, setVError] = useState('');
 
   const handleJDFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

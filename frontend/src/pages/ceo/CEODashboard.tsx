@@ -21,13 +21,6 @@ export default function CEODashboard() {
     }
   }, [auth.isAuthenticated, ceo, navigate]);
 
-  if (!auth.isAuthenticated || !ceo) {
-    return null;
-  }
-
-  const company = getCompany(ceo.companyId);
-  const companyHRs = getHRsByCompany(ceo.companyId);
-
   const [showCreateHR, setShowCreateHR] = useState(false);
   const [showEditCompany, setShowEditCompany] = useState(false);
   const [showAddDept, setShowAddDept] = useState(false);
@@ -42,11 +35,29 @@ export default function CEODashboard() {
 
   // Company edit form
   const [companyForm, setCompanyForm] = useState({
-    description: company?.description || '',
-    industry: company?.industry || '',
-    location: company?.location || '',
-    website: company?.website || '',
+    description: '',
+    industry: '',
+    location: '',
+    website: '',
   });
+
+  const company = ceo ? getCompany(ceo.companyId) : undefined;
+  const companyHRs = ceo ? getHRsByCompany(ceo.companyId) : [];
+
+  useEffect(() => {
+    if (company) {
+      setCompanyForm({
+        description: company.description || '',
+        industry: company.industry || '',
+        location: company.location || '',
+        website: company.website || '',
+      });
+    }
+  }, [company?.description, company?.industry, company?.location, company?.website]);
+
+  if (!auth.isAuthenticated || !ceo) {
+    return null;
+  }
 
   const handleCreateHR = (e: React.FormEvent) => {
     e.preventDefault();

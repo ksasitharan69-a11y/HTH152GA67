@@ -72,9 +72,9 @@ export default function TechnicalInterviewAssessment() {
   const overallFit = Math.round(round1Score * 0.4 + round2Score * 0.6);
 
   // If questions not generated yet, generate them in real time
-  const handleGenerateQuestions = () => {
+  const handleGenerateQuestions = async () => {
     try {
-      generateAssessmentQuestions(application.id);
+      await generateAssessmentQuestions(application.id);
       setToast({ message: 'Round 2 Technical Quiz and Debugging challenges generated in real time.', type: 'success' });
     } catch {
       setToast({ message: 'Failed to generate assessment questions.', type: 'error' });
@@ -82,14 +82,14 @@ export default function TechnicalInterviewAssessment() {
   };
 
   // Real-time simulate candidate completing the quiz and debugging round
-  const handleSimulateCandidateAnswers = () => {
+  const handleSimulateCandidateAnswers = async () => {
     setIsSimulating(true);
     let questions = round2?.questions || [];
     if (questions.length === 0) {
-      questions = generateAssessmentQuestions(application.id);
+      questions = await generateAssessmentQuestions(application.id);
     }
 
-    const simulatedAnswers = questions.map((q, idx) => {
+    const simulatedAnswers = questions.map((q) => {
       let sampleAnswer = '';
       if (q.category === 'problem_solving' || q.targetSkill.toLowerCase().includes('sql') || q.targetSkill.toLowerCase().includes('database')) {
         sampleAnswer = `To optimize this query, I created a composite index on (user_id, created_at DESC) and analyzed execution plans using EXPLAIN ANALYZE. This resolved sequential table scans, reduced buffer read latency from 420ms to 8ms, and ensured connection pool efficiency under high concurrent traffic.`;
@@ -107,14 +107,20 @@ export default function TechnicalInterviewAssessment() {
       };
     });
 
-    setTimeout(() => {
-      submitAssessmentAnswers(application.id, simulatedAnswers);
+    try {
+      await submitAssessmentAnswers(application.id, simulatedAnswers);
       setIsSimulating(false);
       setToast({
         message: 'Candidate answers submitted and AI evaluation scores computed in real time!',
         type: 'success'
       });
-    }, 600);
+    } catch {
+      setIsSimulating(false);
+      setToast({
+        message: 'Error computing evaluation score. Please try again.',
+        type: 'error'
+      });
+    }
   };
 
   const handleAdjustScore = (questionId: string, currentScore: number, delta: number) => {

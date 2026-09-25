@@ -9,15 +9,31 @@ from app.database.models import (
     ApplicationFeedback, ApplicationStatus, MatchStatus,
     VerificationEvaluationResult, VerificationType, RequirementType
 )
+import re
 from app.ai.jd_analyzer import jd_analyzer
 from app.ai.resume_analyzer import resume_analyzer
 from app.ai.matcher import matcher
+from app.ai.pii_shield import pii_shield
 from app.schemas.ai import (
     ApplicationAnalysisResponse, RequirementMatchItem,
     EvidenceResponseItem, EvidenceGraphResponse, GraphNode, GraphEdge
 )
 
 logger = logging.getLogger(__name__)
+
+def verify_citation_grounding(evidence_text: str, resume_text: str) -> bool:
+    """Verifies that an extracted evidence citation actually exists in the resume text."""
+    if not evidence_text or not resume_text:
+        return False
+    clean_ev = re.sub(r"\s+", " ", evidence_text.strip().lower())
+    clean_res = re.sub(r"\s+", " ", resume_text.strip().lower())
+    if clean_ev in clean_res:
+        return True
+    words = [w for w in re.findall(r"\b\w{3,}\b", clean_ev) if w not in ["with", "have", "from", "that", "this", "section"]]
+    if not words:
+        return True
+    match_cnt = sum(1 for w in words if w in clean_res)
+    return (match_cnt / len(words)) >= 0.60
 
 class ApplicationService:
     """Core orchestration service for job applications and AI analysis pipelines."""
@@ -45,14 +61,19 @@ class ApplicationService:
         if not vacancy:
             raise HTTPException(status_code=404, detail="Associated vacancy not found.")
 
-        resume_text = application.extracted_resume_text or ""
-        if not resume_text:
+        raw_resume_text = application.extracted_resume_text or ""
+        if not raw_resume_text:
             raise HTTPException(
                 status_code=400,
                 detail="Application does not have extracted resume text available for analysis."
             )
 
-        # 1. Ensure vacancy has structured requirements
+        # 1. Apply PII & Anti-Bias Shield before any LLM evaluation
+        candidate_name = application.candidate.name if application.candidate else None
+        sanitized_resume, redactions = pii_shield.mask_pii(raw_resume_text, candidate_name=candidate_name)
+        application.sanitized_resume_text = sanitized_resume
+
+        # 2. Ensure vacancy has structured requirements
         requirements = db.query(JobRequirement).filter(JobRequirement.vacancy_id == vacancy.id).all()
         if not requirements:
             logger.info(f"Extracting structured requirements for vacancy {vacancy.id} using JD Analyzer...")
@@ -75,8 +96,8 @@ class ApplicationService:
             db.commit()
             requirements = db.query(JobRequirement).filter(JobRequirement.vacancy_id == vacancy.id).all()
 
-        # 2. Extract structured entities from candidate resume
-        resume_data = await resume_analyzer.analyze(resume_text)
+        # 3. Extract structured entities from sanitized candidate resume
+        resume_data = await resume_analyzer.analyze(sanitized_resume)
         resume_dict = resume_data.model_dump()
 
         # Clean existing match results and evidences for fresh re-analysis
@@ -84,7 +105,7 @@ class ApplicationService:
         db.query(MatchResult).filter(MatchResult.application_id == application.id).delete()
         db.commit()
 
-        # 3. Perform matching and evidence extraction for each requirement
+        # 4. Perform matching, evidence extraction, and deterministic citation verification
         requirement_items: List[RequirementMatchItem] = []
         has_unverified = False
         verified_count = 0
@@ -94,9 +115,27 @@ class ApplicationService:
                 requirement_text=req.requirement_text,
                 requirement_type=req.requirement_type,
                 importance=req.importance,
-                resume_text=resume_text,
+                resume_text=sanitized_resume,
                 resume_data=resume_dict
             )
+
+            # Deterministic Citation Verification: ensure extracted evidence exists in sanitized resume
+            grounded_evidences = []
+            for ev in evidences:
+                source_txt = ev.get("source_text", "")
+                if verify_citation_grounding(source_txt, sanitized_resume):
+                    grounded_evidences.append(ev)
+                else:
+                    logger.warning(f"Ungrounded evidence rejected for req {req.id}: '{source_txt[:60]}...'")
+
+            # If evidence could not be verified in resume text, mark status as UNVERIFIED
+            if not grounded_evidences and match_status in [MatchStatus.VERIFIED, MatchStatus.PARTIAL]:
+                # If skills list fallback or general, check if listed in skills
+                skills_lower = [s.lower() for s in resume_dict.get("skills", [])]
+                if not any(req.requirement_text.lower() in s for s in skills_lower):
+                    match_status = MatchStatus.UNVERIFIED
+                    reasoning = f"Unverified: Citations could not be grounded in candidate's sanitized resume text for '{req.requirement_text}'."
+                    confidence = 0.50
 
             if match_status in [MatchStatus.UNVERIFIED, MatchStatus.PARTIAL]:
                 has_unverified = True
@@ -114,11 +153,10 @@ class ApplicationService:
             db.add(db_match)
             db.flush()
 
-            # Persist Evidences
+            # Persist Verified Evidences
             db_evidence_items: List[EvidenceResponseItem] = []
-            for ev in evidences:
+            for ev in grounded_evidences:
                 source_type = ev.get("source_type")
-                # Ensure valid enum
                 if not hasattr(source_type, "value"):
                     source_type = "RESUME"
                 db_ev = Evidence(

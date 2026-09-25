@@ -1,277 +1,222 @@
-# HIREPROOF AI - BACKEND
+# HireProof AI - Backend Engine
 **Tagline:** *"Don't Just Match. Prove. Verify. Explain."*
+**Problem Statement:** HTH-GA-04 — Explainable Candidate–Role Fit Engine
 
 ---
 
-## 1. Project Overview
-HireProof AI is a next-generation hiring intelligence engine created for a 24-hour hackathon. Traditional applicant tracking systems rely on naive keyword matching or unverified LLM summaries that hallucinate candidate credentials and fabricate qualifications.
+## 1. Updated Target Architecture
 
-HireProof AI enforces a rigorous **MATCH → PROVE → VERIFY → EXPLAIN → AUDIT** pipeline:
-- **No Hallucinations**: Evidence must be grounded in verified candidate documentation.
-- **Evidence-Based Matching**: Distinguishes between `VERIFIED`, `PARTIAL`, `UNVERIFIED`, and `GAP`. (Crucial rule: No evidence ≠ GAP; it is `UNVERIFIED`).
-- **Interactive Skill Proving**: Generates targeted technical challenges and behavioral questions specifically targeting unverified requirements.
-- **Explainable Knowledge Graphs**: Visualizes the decision tree: `Requirement → Evidence → Reasoning → Match Decision`.
-- **Human-in-the-Loop Audit Trail**: HR can challenge and override AI conclusions with full audit preservation.
-
----
-
-## 2. Architecture & Pipeline
 ```
-[ Job Description ]
-        │
-        ▼ (JD Analyzer)
-[ Structured Requirements: Skills, Experience, Education ]
-        │
-[ Candidate Uploads Resume (PDF / DOCX) ]
-        │
-        ▼ (Resume Parser & Analyzer)
-[ Normalized Text & Factual Candidate Entities ]
-        │
-        ▼ (Matcher & Evidence Extractor)
-[ Evidence-Based Requirement Evaluation: VERIFIED | PARTIAL | UNVERIFIED | GAP ]
-        │
-   ┌────┴────────────────────────┐
-   ▼                             ▼
-[ Evidence Graph API ]    [ Prove This Skill API ]
-(Graph: Req ➔ Evidence        (AI Challenge / Interview Question)
-        ➔ Reasoning ➔ Decision)    │
-                                 ▼
-                         [ Candidate Answer ]
-                                 │
-                                 ▼ (Answer Evaluator)
-                         [ STRONG_EVIDENCE? ]
-                           ├── YES ➔ Status updated to VERIFIED
-                           └── NO  ➔ Preserved as UNVERIFIED/PARTIAL
-                                 │
-                                 ▼
-                         [ HR Audit & Challenge ]
-                         (Human override preserved in history)
-                                 │
-                                 ▼
-                         [ Final Explainable Report ]
+React + TypeScript + Tailwind (Frontend)
+                  │
+                  ▼
+FastAPI Backend (Python 3.12, Uvicorn, Pydantic v2, SQLAlchemy 2)
+                  │
+                  ▼
+Supabase PostgreSQL (Database) + Supabase Storage (Resumes)
+                  ↕
+AI Candidate Evaluation / Explainability (Sasitharan)
+  [PII Shield ➔ JD Decomposition ➔ Atomic Requirements ➔ Requirement Matching
+   ➔ Evidence Extraction ➔ Citation Grounding ➔ Audit Defense Agent]
+                  ↕
+Candidate Assessment / Skill Verification (Sampreeth)
+  [Drill-Down Questions ➔ Broken-Code Challenge ➔ Rubric Grading ➔ Database Persistence]
 ```
 
----
-
-## 3. Tech Stack
-- **Language & Runtime**: Python 3.11+
-- **Web Framework**: FastAPI (Async, ASGI)
-- **ASGI Server**: Uvicorn
-- **ORM & Database**: SQLAlchemy 2.0+ (supports MySQL / MariaDB via PyMySQL and SQLite default)
-- **Data Validation & Settings**: Pydantic v2 & Pydantic-Settings
-- **Authentication**: JWT (`PyJWT`), Bcrypt (`Passlib`), Role-based access control (CEO, HR, CANDIDATE)
-- **Document Processing**: `pypdf` (PDF extraction), `python-docx` (DOCX extraction)
-- **GenAI / LLM Integration**: Multi-provider client (`ai/llm_client.py`) supporting Google Gemini, OpenAI, or integrated Semantic Reasoning Engine.
-- **Testing**: `pytest`, `pytest-asyncio`, `httpx` (TestClient)
+### Team Responsibilities & Ownership
+* **Tarunika**: Frontend / UI / UX (React, TypeScript, Tailwind)
+* **Dharshni**: Backend / Database (FastAPI, Auth, Organizations, Vacancies, Applications, Persistence, Audit)
+* **Sasitharan**: AI Candidate Evaluation / Explainability (PII & Anti-Bias Shield, Matching, Citations, Audit Defense Agent)
+* **Sampreeth**: Candidate Assessment / Skill Verification (Drill-down questions, Broken-code challenge, Answer evaluation, Grading)
 
 ---
 
-## 4. Folder Structure
-```
-backend/
-├── app/
-│   ├── main.py                    # FastAPI entrypoint, CORS, lifespan, exception handlers
-│   ├── core/
-│   │   ├── config.py              # Environment settings (Pydantic Settings)
-│   │   ├── security.py            # Password hashing, JWT creation/decoding, OTP generator
-│   │   └── dependencies.py        # RBAC dependencies (get_current_ceo, get_current_hr, etc.)
-│   ├── database/
-│   │   ├── database.py            # SQLAlchemy engine, session maker, init_db()
-│   │   └── models.py              # Relational models (Users, Companies, Vacancies, Evidence, etc.)
-│   ├── schemas/
-│   │   ├── auth.py                # Auth DTOs (Register, Login, Token, OTP)
-│   │   ├── company.py             # Company & Department schemas
-│   │   ├── hr.py                  # HR profiles & dashboard metrics
-│   │   ├── vacancy.py             # Vacancy & Structured Requirements schemas
-│   │   ├── application.py         # Application submission & tracking schemas
-│   │   └── ai.py                  # Match, Evidence Graph, Verification, & Audit schemas
-│   ├── routers/
-│   │   ├── auth.py                # Registration, Login, Email OTP
-│   │   ├── ceo.py                 # CEO Company, Department, and HR account creation
-│   │   ├── hr.py                  # Vacancy management, applicants, HR review & challenges
-│   │   ├── candidate.py           # Public vacancies, profile, application & resume upload
-│   │   └── ai.py                  # Matching, Evidence Graph, Verification, & Final Report
-│   ├── services/
-│   │   ├── auth_service.py        # Business logic for auth & OTP
-│   │   ├── resume_service.py      # File upload handling & storage abstraction
-│   │   ├── application_service.py # AI pipeline orchestration & graph generator
-│   │   └── verification_service.py# Verification challenges, interviews, answer evaluation
-│   └── ai/
-│       ├── llm_client.py          # Unified client for Gemini / OpenAI / Semantic Engine
-│       ├── resume_parser.py       # PDF & DOCX extraction & text normalization
-│       ├── jd_analyzer.py         # Decomposes JDs into structured requirements
-│       ├── resume_analyzer.py     # Extracts factual resume entities (no hallucinations)
-│       ├── matcher.py             # Evaluates VERIFIED, PARTIAL, UNVERIFIED, GAP
-│       ├── evidence_extractor.py  # Pinpoints exact text excerpts & section locations
-│       ├── question_generator.py  # Generates targeted scenario challenges & interview questions
-│       ├── answer_evaluator.py    # Scores candidate responses for technical depth
-│       └── final_analyzer.py      # Compiles comprehensive final report & audit trail
-├── uploads/
-│   └── resumes/                   # Stored candidate resume documents
-├── tests/
-│   ├── conftest.py                # TestClient and isolated DB fixture
-│   ├── test_auth.py               # Auth & registration tests
-│   ├── test_ceo_hr.py             # CEO management & HR creation tests
-│   ├── test_vacancies.py          # Vacancy creation & discovery tests
-│   ├── test_applications.py       # Application submission & duplicate prevention tests
-│   ├── test_ai.py                 # AI matching, evidence graph & verification tests
-│   └── test_audit.py              # HR review, challenge override & feedback tests
-├── requirements.txt               # Pinned dependencies
-├── pytest.ini                     # Pytest configuration
-├── seed.py                        # Optional demo data seed script
-├── .env.example                   # Environment configuration template
-└── README.md                      # Comprehensive backend documentation
-```
+## 2. Key Architecture Pillars
+
+1. **No Hallucinations / Strict Grounding**: Every candidate qualification match requires verifiable citations in the candidate's resume. Uncited claims are marked `UNVERIFIED`.
+2. **PII & Anti-Bias Shield**: Pre-processes raw resumes before LLM evaluation to mask contact information, personal URLs, names, and explicit calendar years while preserving 100% of technical evidence (skills, tools, projects, metrics).
+3. **Canonical Assessment & Skill Verification Engine**: Generates targeted drill-down questions and realistic broken-code challenges (15–25 lines with intentional concurrency and error handling bugs) grounded in the candidate's actual stack. Graded against structured rubrics (0–100) with verdicts: `STRONG HIRE`, `BORDERLINE`, `REJECT`.
+4. **Audit Defense Agent**: Allows authorized HR recruiters and auditors to query the decision history (e.g. *"What evidence supported this decision?"*, *"Which requirement caused the largest gap?"*, *"Why this assessment score?"*) using strictly grounded database records.
+5. **Auditable Human Overrides**: Recruiters remain the final decision-makers. Any human override preserves original AI determinations in `hr_challenges` without destructive overwrites.
+6. **Supabase PostgreSQL & Storage**: Uses SQLAlchemy 2.0 ORM compatible with Supabase PostgreSQL and provides a modular storage abstraction (`SupabaseStorageService`) with an isolated local disk fallback.
 
 ---
 
-## 5. Database Setup
-The backend supports two database backends out-of-the-box via `DATABASE_URL`:
-1. **SQLite (Default for portable hackathon development)**:
-   ```env
-   DATABASE_URL=sqlite:///./hireproof.db
-   ```
-2. **MySQL / MariaDB (Production & high concurrency)**:
-   ```env
-   DATABASE_URL=mysql+pymysql://username:password@localhost:3306/hireproof_ai
-   ```
-Database tables are initialized automatically on application startup via `init_db()`.
+## 3. Environment Variables (`.env`)
 
----
+Create `backend/.env` based on `backend/.env.example`:
 
-## 6. Environment Variables (`.env`)
-Create a `.env` file in the `backend/` directory (see `.env.example`):
 ```env
+# Database (SQLite default fallback or Supabase PostgreSQL)
 DATABASE_URL=sqlite:///./hireproof.db
-SECRET_KEY=your_secure_jwt_secret_key_change_in_prod
+# For Supabase PostgreSQL:
+# DATABASE_URL=postgresql+psycopg2://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+
+# Supabase Storage Configuration (Backend-Only)
+STORAGE_PROVIDER=local
+# Options: 'local' (default disk fallback) or 'supabase'
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_public_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_secret_key
+SUPABASE_STORAGE_BUCKET=resumes
+
+# Security & Session Authentication
+SECRET_KEY=hireproof_ai_super_secret_jwt_key_hackathon_2026_change_in_prod
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 OTP_EXPIRE_MINUTES=15
 
-# LLM Provider Configuration
+# LLM Configuration
 LLM_PROVIDER=gemini
-LLM_API_KEY=your_gemini_api_key_here
 LLM_MODEL=gemini-1.5-flash
+GEMINI_API_KEY=your_gemini_api_key
+OPENAI_API_KEY=
+LLM_API_KEY=
 
-# Frontend & File Uploads
-FRONTEND_URL=http://localhost:5173
+# File Storage & Limits
 UPLOAD_DIR=uploads
 MAX_FILE_SIZE_MB=10
+
+# CORS
+FRONTEND_URL=http://localhost:5173
 ```
 
 ---
 
-## 7. Installation & Setup
+## 4. Local Setup & Quickstart
 
-1. **Activate Virtual Environment**:
+### Prerequisites
+* Python 3.12+
+* Node.js v18+ (for frontend)
+
+### Installation
+1. Navigate to the `backend/` directory:
    ```powershell
    cd backend
+   ```
+2. Create and activate a virtual environment:
+   ```powershell
+   python -m venv .venv
    .\.venv\Scripts\activate
    ```
-2. **Install Dependencies**:
+3. Install dependencies:
    ```powershell
    pip install -r requirements.txt
    ```
-3. **(Optional) Seed Development Data**:
+4. Run Database Migrations (Alembic):
    ```powershell
-   python seed.py
+   alembic upgrade head
    ```
-   *Creates pre-populated CEO (`ceo@hireproof.ai`), HR (`hr@hireproof.ai`), and Candidate (`candidate@hireproof.ai`), with password `HireProof2026!`.*
 
 ---
 
-## 8. Running the Backend
-Run the development server using `uvicorn`:
+## 5. Running the Backend Server
+
+Start the development server with Uvicorn:
 ```powershell
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+.\.venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
-- API Base URL: `http://127.0.0.1:8000`
-- Interactive Swagger UI: `http://127.0.0.1:8000/docs`
-- ReDoc Documentation: `http://127.0.0.1:8000/redoc`
+
+* API Base URL: `http://127.0.0.1:8000`
+* Swagger Interactive Docs: `http://127.0.0.1:8000/docs`
+* ReDoc Alternative Docs: `http://127.0.0.1:8000/redoc`
 
 ---
 
-## 9. API Endpoints Summary
+## 6. Running Tests
+
+Run the complete automated pytest suite:
+```powershell
+.\.venv\Scripts\python.exe -m pytest -v
+```
+
+All 15 automated test suites pass with 100% success:
+* `test_auth.py`: CEO/Candidate registration, OTP verification, password hashing, JWT tokens
+* `test_ceo_hr.py`: Company hierarchy, department management, HR creation
+* `test_vacancies.py`: Vacancy publishing, requirements decomposition, public discovery
+* `test_applications.py`: Resume file upload, duplicate prevention, candidate tracking
+* `test_ai.py`: Evidence extraction, requirement matching, knowledge graph generation
+* `test_assessments.py`: Assessment challenge generation, submission, rubric grading, scoring
+* `test_audit.py`: Human HR reviews, challenge logging, candidate feedback
+* `test_audit_defense_and_storage.py`: PII sanitization, Audit Defense Agent Q&A, storage fallback
+
+---
+
+## 7. API Groups & Endpoints
 
 ### Authentication (`/auth`)
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/auth/ceo/register` | Register CEO and Company (triggers OTP) |
-| `POST` | `/auth/candidate/register` | Register Candidate (triggers OTP) |
-| `POST` | `/auth/verify-email` | Verify email with OTP |
-| `POST` | `/auth/login` | Login and obtain JWT token |
+* `POST /auth/ceo/register` - Register CEO & Company
+* `POST /auth/candidate/register` - Register Candidate
+* `POST /auth/verify-email` - Verify email using 6-digit OTP
+* `POST /auth/login` - Authenticate and obtain JWT token
 
-### CEO Management (`/ceo`)
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/ceo/company` | View CEO's company details |
-| `POST` | `/ceo/departments` | Create department in company |
-| `GET` | `/ceo/departments` | List company departments |
-| `PUT` | `/ceo/departments/{id}` | Update department name |
-| `DELETE` | `/ceo/departments/{id}` | Remove department |
-| `POST` | `/ceo/hr` | Create HR account assigned to department |
-| `GET` | `/ceo/hr` | List HR team members in company |
-| `GET` | `/ceo/hr/{id}` | Get HR profile details |
+### Vacancies (`/vacancies` & `/hr/vacancies`)
+* `POST /vacancies` - Create a job vacancy (HR only)
+* `GET /vacancies` - List published vacancies (Public) or company vacancies (HR)
+* `GET /vacancies/{id}` - Get vacancy details and requirements
+* `POST /hr/vacancies/{id}/publish` - Publish a draft vacancy
 
-### HR Management (`/hr`)
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/hr/profile` | HR profile information |
-| `GET` | `/hr/dashboard` | Dashboard metrics (vacancies, applicants) |
-| `POST` | `/hr/vacancies` | Create job vacancy with structured requirements |
-| `GET` | `/hr/vacancies` | List vacancies in company |
-| `GET` | `/hr/vacancies/{id}` | Get vacancy details |
-| `POST` | `/hr/vacancies/{id}/publish` | Publish vacancy |
-| `GET` | `/hr/vacancies/{id}/applications` | View candidates who applied to vacancy |
-| `GET` | `/hr/applications/{id}/analysis` | View AI evidence analysis & audit trail |
-| `POST` | `/hr/applications/{id}/challenge` | Submit human override / challenge |
-| `PUT` | `/hr/applications/{id}/status` | Update status (`SHORTLISTED`, `SELECTED`, etc.) |
-| `POST` | `/hr/applications/{id}/feedback` | Attach candidate feedback |
+### Applications (`/applications` & `/candidate/applications`)
+* `POST /applications` - Submit candidate application with resume upload (PDF/DOCX)
+* `GET /applications` - List applications for authenticated candidate or HR company
+* `GET /applications/{id}` - View complete application details and match results
 
-### Public & Candidate Portal
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/companies` | Public list of registered companies |
-| `GET` | `/companies/{id}/vacancies` | Published vacancies for company |
-| `GET` | `/candidate/profile` | View candidate profile |
-| `PUT` | `/candidate/profile` | Update GitHub, LinkedIn, or name |
-| `POST` | `/candidate/applications` | Apply for job with PDF/DOCX resume upload |
-| `GET` | `/candidate/applications` | Track candidate's submitted applications |
-| `GET` | `/candidate/applications/{id}` | View candidate application details |
-| `GET` | `/candidate/applications/{id}/feedback` | View candidate's feedback |
+### AI Candidate Evaluation (`/ai`)
+* `POST /ai/applications/{id}/analyze` - Run PII Shield, entity extraction, requirement matching, and citation grounding
+* `GET /ai/applications/{id}/evidence-graph` - Retrieve graph-structured nodes and edges (`Requirement ➔ Evidence ➔ Reasoning ➔ Decision`)
+* `GET /ai/applications/{id}/final-analysis` - Retrieve comprehensive explainability report
+* `POST /ai/evaluate/{application_id}` - Alias endpoint for application evaluation
+* `GET /ai/evaluation/{application_id}` - Alias endpoint for final analysis
+* `GET /ai/requirements/{application_id}` - Structured requirements list
+* `GET /ai/evidence/{application_id}` - Verified evidence citations
 
-### AI Reasoning & Verification (`/ai`)
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/ai/applications/{id}/analyze` | Run/rerun AI analysis & evidence extraction |
-| `GET` | `/ai/applications/{id}/evidence-graph` | Fetch graph-friendly JSON (nodes & edges) |
-| `POST` | `/ai/applications/{id}/requirements/{req_id}/prove` | Determine verification method |
-| `POST` | `/ai/verification/challenge` | Generate scenario-based challenge |
-| `POST` | `/ai/verification/interview-question` | Generate technical interview question |
-| `POST` | `/ai/verification/evaluate` | Evaluate candidate response & update status |
-| `GET` | `/ai/applications/{id}/final-analysis` | Get complete explainable audit report |
+### Candidate Assessment & Skill Verification (`/assessments`)
+* `POST /assessments/{application_id}/generate` - Generate stack-tailored drill-down questions, broken-code snippet, and answer key
+* `GET /assessments/{application_id}` - Fetch assessment challenge for candidate (answer key sanitized)
+* `POST /assessments/{application_id}/submit` - Submit candidate answers and trigger rubric grading
+* `GET /assessments/{application_id}/result` - Retrieve evaluated score (0-100), verdict (`STRONG HIRE` / `BORDERLINE` / `REJECT`), and breakdown
+
+### Explainability & Audit Defense (`/audit`)
+* `GET /audit/{application_id}` - Retrieve complete audit trail and evidence citations
+* `POST /audit/{application_id}/override` - Log recruiter status override with justification
+* `POST /audit/{application_id}/ask` - Ask natural language audit questions strictly grounded in application records
 
 ---
 
-## 10. Core AI Innovation & Verification Rules
-1. **Never Invent Credentials**: The AI only matches against text factually present in the resume.
-2. **Missing Evidence ≠ Gap**: If a resume does not mention AWS, its status is `UNVERIFIED`, never `GAP`.
-3. **Interactive Verification**: Candidates with `UNVERIFIED` skills can complete targeted challenges or interview questions to prove their skill.
-4. **Audit Immutability**: When an `UNVERIFIED` skill transitions to `VERIFIED` via strong evidence, the original state, the question, the candidate's answer, and AI reasoning are preserved in `verification_history`.
-5. **Human Override**: HR can challenge any AI decision; overrides are stored in `hr_challenges` preserving the human reviewer's identity and justification.
+## 8. AI & Verification Pipelines
+
+### AI Candidate Evaluation Pipeline
+1. Candidate uploads resume (PDF/DOCX).
+2. Text extracted and normalized.
+3. **PII Shield** redacts candidate name, email, phone, profile URLs, and graduation calendar years to prevent demographic bias.
+4. **JD Analyzer** decomposes vacancy into atomic structured requirements.
+5. **Resume Analyzer** extracts technical entities, skills, projects, and certifications.
+6. **Matcher & Evidence Extractor** searches for grounded textual citations in the sanitized resume.
+7. **Deterministic Citation Verifier** validates that extracted snippets actually exist in the candidate text. If ungrounded, the requirement is marked `UNVERIFIED`.
+8. Matches categorized into: `VERIFIED`, `PARTIAL`, `UNVERIFIED`, or `GAP`.
+
+### Candidate Assessment Pipeline
+1. Application enters assessment stage.
+2. **Assessment Service** reads vacancy JD, candidate resume claims, and identified gaps.
+3. Generates 2–5 deep drill-down questions, a 15–25 line broken-code snippet containing intentional production bugs (e.g. TOCTOU race condition, unmanaged transaction rollback), and a grounded answer key.
+4. Candidate submits responses.
+5. Engine grades responses out of 100 with technical breakdown and verdict (`STRONG HIRE`, `BORDERLINE`, `REJECT`).
+6. Results stored persistently in the database `assessments` table.
+
+### Audit Defense Workflow
+1. Recruiter or auditor accesses `/audit/{application_id}/ask`.
+2. Asks questions such as:
+   * *"Why was this candidate marked PARTIAL for Distributed Systems?"*
+   * *"What evidence was found in the candidate's resume?"*
+   * *"Which qualification represents the largest gap?"*
+   * *"Why did the candidate receive a BORDERLINE assessment verdict?"*
+3. **Audit Defense Agent** responds strictly using the stored application evidence, match records, assessment results, and HR overrides without hallucinating unrecorded facts.
 
 ---
 
-## 11. Testing Instructions
-Run the automated pytest suite:
-```powershell
-pytest -v
-```
-All 10 test suites validate:
-- CEO & Candidate Registration + OTP Verification
-- Role-based Authorization & Cross-tenant isolation
-- Vacancy creation, publishing, and public discovery
-- Application submission, resume upload, duplicate prevention
-- AI evidence extraction, matching states, and graph generation
-- Skill verification question generation and answer evaluation
-- HR challenge overrides and candidate feedback tracking
+## 9. Security & Access Control
+
+* **Cross-Tenant Isolation**: HR users and CEOs can only view vacancies, applications, and audit records belonging to their respective company.
+* **Candidate Privacy**: Candidates can only access their own profile, applications, and assessment challenges.
+* **Server-Side Enforcement**: All authorization is enforced in FastAPI route dependencies; frontend role parameters are never trusted.
+* **Secret Protection**: Supabase service-role keys and LLM keys are backend-only and never exposed to clients or in API responses.

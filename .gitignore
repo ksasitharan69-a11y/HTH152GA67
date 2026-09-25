@@ -55,3 +55,6 @@ backend/uploads/resumes/*
 Thumbs.db
 *.swp
 *.swo
+
+# Nested scratch/test engine repos
+candidate-test-engine/

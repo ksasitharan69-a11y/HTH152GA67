@@ -71,6 +71,11 @@ class VerificationEvaluationResult(str, enum.Enum):
     PARTIAL_EVIDENCE = "PARTIAL_EVIDENCE"
     INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
 
+class AssessmentStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    SUBMITTED = "SUBMITTED"
+    EVALUATED = "EVALUATED"
+
 # -------------------------------------------------------------
 # User & Authentication Models
 # -------------------------------------------------------------
@@ -240,6 +245,8 @@ class Application(Base):
     resume_filename = Column(String(255), nullable=False)
     resume_mime_type = Column(String(100), nullable=False)
     extracted_resume_text = Column(Text, nullable=True)
+    sanitized_resume_text = Column(Text, nullable=True)
+    storage_provider = Column(String(50), default="local", nullable=False)
     status = Column(Enum(ApplicationStatus), default=ApplicationStatus.APPLIED, nullable=False)
     applied_at = Column(DateTime, default=utc_now, nullable=False)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
@@ -252,6 +259,7 @@ class Application(Base):
     verifications = relationship("VerificationHistory", back_populates="application", cascade="all, delete-orphan")
     challenges = relationship("HRChallenge", back_populates="application", cascade="all, delete-orphan")
     feedbacks = relationship("ApplicationFeedback", back_populates="application", cascade="all, delete-orphan")
+    assessment = relationship("Assessment", back_populates="application", uselist=False, cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("vacancy_id", "candidate_id", name="uq_application_vacancy_candidate"),
@@ -313,7 +321,7 @@ class HRChallenge(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     application_id = Column(Integer, ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
-    requirement_id = Column(Integer, ForeignKey("job_requirements.id", ondelete="CASCADE"), nullable=False)
+    requirement_id = Column(Integer, ForeignKey("job_requirements.id", ondelete="CASCADE"), nullable=True)
     hr_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     original_status = Column(String(50), nullable=False)
     new_status = Column(String(50), nullable=True)
@@ -335,3 +343,23 @@ class ApplicationFeedback(Base):
     created_at = Column(DateTime, default=utc_now, nullable=False)
 
     application = relationship("Application", back_populates="feedbacks")
+
+class Assessment(Base):
+    __tablename__ = "assessments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id", ondelete="CASCADE"), unique=True, nullable=False)
+    drill_down_questions = Column(JSON, nullable=False, default=list)
+    broken_code_snippet = Column(Text, nullable=False)
+    answer_key = Column(JSON, nullable=False, default=dict)
+    candidate_answers = Column(JSON, nullable=True)
+    score = Column(Integer, nullable=True)
+    verdict = Column(String(50), nullable=True)  # STRONG HIRE, BORDERLINE, REJECT
+    findings_breakdown = Column(JSON, nullable=True)
+    audit_justification = Column(Text, nullable=True)
+    status = Column(Enum(AssessmentStatus), default=AssessmentStatus.PENDING, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+    evaluated_at = Column(DateTime, nullable=True)
+
+    application = relationship("Application", back_populates="assessment")

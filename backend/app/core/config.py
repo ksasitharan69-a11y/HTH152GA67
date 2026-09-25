@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = Field(default="sqlite:///./hireproof.db")
     
+    # Supabase Configuration
+    SUPABASE_URL: Optional[str] = Field(default=None)
+    SUPABASE_ANON_KEY: Optional[str] = Field(default=None)
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = Field(default=None)
+    STORAGE_PROVIDER: str = Field(default="local")
+    SUPABASE_STORAGE_BUCKET: str = Field(default="resumes")
+    
     # JWT Authentication
     SECRET_KEY: str = Field(default="hireproof_ai_super_secret_jwt_key_hackathon_2026_change_in_prod")
     ALGORITHM: str = Field(default="HS256")
@@ -26,8 +33,13 @@ class Settings(BaseSettings):
     # LLM Settings
     LLM_PROVIDER: str = Field(default="gemini")
     LLM_API_KEY: Optional[str] = Field(default=None)
+    GEMINI_API_KEY: Optional[str] = Field(default=None)
+    OPENAI_API_KEY: Optional[str] = Field(default=None)
     LLM_MODEL: str = Field(default="gemini-1.5-flash")
     LLM_BASE_URL: Optional[str] = Field(default=None)
+
+    def get_gemini_key(self) -> Optional[str]:
+        return self.GEMINI_API_KEY or self.LLM_API_KEY or os.getenv("GEMINI_API_KEY")
     
     # CORS
     FRONTEND_URL: str = Field(default="http://localhost:5173")

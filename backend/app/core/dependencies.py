@@ -46,6 +46,22 @@ def get_current_user(
         )
     return user
 
+def get_optional_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """Optionally validate JWT token if present, returning None if unauthenticated."""
+    if not credentials or not credentials.credentials:
+        return None
+    token = credentials.credentials
+    payload = decode_access_token(token)
+    if not payload or not payload.get("sub"):
+        return None
+    try:
+        return db.query(User).filter(User.id == int(payload["sub"]), User.is_active == True).first()
+    except Exception:
+        return None
+
 def get_current_ceo(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
