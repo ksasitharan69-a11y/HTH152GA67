@@ -1,4 +1,15 @@
-# app.py - HireProof JD-Based Bulk Resume Evaluation & Audit Console
+# ============================================================
+# HireProof - JD-Based Bulk Resume Screening & Deep Audit
+# ============================================================
+#
+# IMPORTANT:
+# - No pandas
+# - Every uploaded resume is analyzed
+# - AI provides candidate-level reasoning
+# - Python handles PDF extraction, UI, storage and validation
+# - Deep Audit uses evaluate_fit()
+#
+# ============================================================
 
 import streamlit as st
 import csv
@@ -20,7 +31,7 @@ from data import JOB_DESCRIPTIONS
 
 st.set_page_config(
     layout="wide",
-    page_title="HireProof: JD-Based Resume Screener",
+    page_title="HireProof: JD-Based Resume Evaluation",
     page_icon="🎯"
 )
 
@@ -29,62 +40,378 @@ st.set_page_config(
 # PAGE HEADER
 # ============================================================
 
-st.title(
-    "🎯 HireProof: JD-Based Bulk Resume Evaluation"
-)
+st.title("🎯 HireProof")
 
 st.caption(
-    "Upload candidate resumes in bulk, provide a target Job Description, "
-    "and evaluate candidate-role alignment using evidence-based screening."
+    "AI-assisted, evidence-based resume analysis against a selected "
+    "Job Description."
 )
+
+
+# ============================================================
+# SESSION STATE
+# ============================================================
+
+if "evaluation_results" not in st.session_state:
+    st.session_state["evaluation_results"] = []
+
+if "bulk_screening_jd" not in st.session_state:
+    st.session_state["bulk_screening_jd"] = ""
+
+if "deep_audit" not in st.session_state:
+    st.session_state["deep_audit"] = {}
+
+if "audit_selected_candidate" not in st.session_state:
+    st.session_state["audit_selected_candidate"] = ""
+
+if "single_pdf_report" not in st.session_state:
+    st.session_state["single_pdf_report"] = None
+
+if "single_pdf_sanitized" not in st.session_state:
+    st.session_state["single_pdf_sanitized"] = ""
+
+if "single_pdf_redaction_log" not in st.session_state:
+    st.session_state["single_pdf_redaction_log"] = []
+
+if "single_pdf_candidate" not in st.session_state:
+    st.session_state["single_pdf_candidate"] = ""
+
+
+# ============================================================
+# HELPER FUNCTIONS
+# ============================================================
+
+def get_verdict_icon(verdict):
+    """Return a visual indicator for a verdict."""
+
+    verdict = str(verdict).upper()
+
+    if verdict == "SHORTLIST":
+        return "🟢"
+
+    if verdict == "REVIEW":
+        return "🟡"
+
+    if verdict == "REJECT":
+        return "🔴"
+
+    return "⚪"
+
+
+def get_brief_explanation(result):
+    """
+    Get the AI-generated candidate explanation.
+
+    The engine may return either:
+    - brief_explanation
+    - evaluation_summary
+
+    We support both so the UI remains compatible with the
+    current engine.py.
+    """
+
+    explanation = result.get("brief_explanation")
+
+    if explanation:
+        return str(explanation).strip()
+
+    explanation = result.get("evaluation_summary")
+
+    if explanation:
+        return str(explanation).strip()
+
+    return (
+        "No candidate explanation was returned by the AI analysis."
+    )
+
+
+def safe_list(value):
+    """Convert possible values into a safe list."""
+
+    if value is None:
+        return []
+
+    if isinstance(value, list):
+        return value
+
+    if isinstance(value, str):
+        if not value.strip():
+            return []
+
+        return [value]
+
+    return [str(value)]
+
+
+def count_verdicts(results):
+    """Calculate screening statistics."""
+
+    shortlisted = 0
+    review = 0
+    rejected = 0
+    errors = 0
+
+    for result in results:
+
+        verdict = str(
+            result.get("verdict", "")
+        ).upper()
+
+        if result.get("evaluation_error"):
+            errors += 1
+
+        if verdict == "SHORTLIST":
+            shortlisted += 1
+
+        elif verdict == "REVIEW":
+            review += 1
+
+        elif verdict == "REJECT":
+            rejected += 1
+
+    return (
+        shortlisted,
+        review,
+        rejected,
+        errors
+    )
+
+
+def display_candidate_summary(result):
+    """
+    Display a compact candidate explanation.
+    """
+
+    candidate_name = result.get(
+        "candidate_name",
+        "Unknown Candidate"
+    )
+
+    filename = result.get(
+        "filename",
+        "Unknown File"
+    )
+
+    verdict = str(
+        result.get(
+            "verdict",
+            "REVIEW"
+        )
+    ).upper()
+
+    score = result.get(
+        "match_score_pct",
+        0
+    )
+
+    explanation = get_brief_explanation(result)
+
+    matched_skills = safe_list(
+        result.get(
+            "matched_skills",
+            []
+        )
+    )
+
+    missing_skills = safe_list(
+        result.get(
+            "missing_skills_gaps",
+            []
+        )
+    )
+
+    main_skills = safe_list(
+        result.get(
+            "main_skills_extracted",
+            []
+        )
+    )
+
+    icon = get_verdict_icon(verdict)
+
+    st.markdown(
+        f"## {icon} {candidate_name}"
+    )
+
+    st.caption(
+        f"Resume: {filename}"
+    )
+
+    metric1, metric2 = st.columns(2)
+
+    with metric1:
+        st.metric(
+            "AI Match Score",
+            f"{score}%"
+        )
+
+    with metric2:
+        st.metric(
+            "AI Verdict",
+            verdict
+        )
+
+    st.markdown("### Brief AI Explanation")
+
+    st.info(
+        explanation
+    )
+
+    screening_basis = result.get("screening_basis")
+    if screening_basis:
+        st.caption(f"Screening basis: {screening_basis}")
+
+    left, right = st.columns(2)
+
+    with left:
+
+        st.markdown("### Matched Requirements")
+
+        if matched_skills:
+
+            for skill in matched_skills:
+                st.write(
+                    f"• {skill}"
+                )
+
+        else:
+
+            st.write(
+                "No direct matches identified."
+            )
+
+    with right:
+
+        st.markdown("### Missing / Gap Areas")
+
+        if missing_skills:
+
+            for skill in missing_skills:
+                st.write(
+                    f"• {skill}"
+                )
+
+        else:
+
+            st.write(
+                "No major gaps identified."
+            )
+
+    if main_skills:
+
+        st.markdown(
+            "### Main Skills Extracted"
+        )
+
+        st.write(
+            ", ".join(main_skills)
+        )
+
+
+# ============================================================
+# SIDEBAR
+# ============================================================
+
+with st.sidebar:
+
+    st.markdown("## HireProof")
+
+    st.caption(
+        "Forensic recruitment analysis"
+    )
+
+    st.divider()
+
+    st.markdown("### Workflow")
+
+    st.markdown(
+        """
+**01 — Upload**
+
+Upload all candidate resumes.
+
+**02 — Analyze**
+
+AI analyzes every resume against the same JD.
+
+**03 — Compare**
+
+Review selected, review and rejected candidates.
+
+**04 — Audit**
+
+Inspect requirement-level evidence for a candidate.
+"""
+    )
+
+    st.divider()
+
+    st.caption(
+        "AI analyzes resume evidence. Python handles "
+        "deterministic processing and audit verification."
+    )
 
 
 # ============================================================
 # TABS
 # ============================================================
 
-tab_bulk, tab_audit = st.tabs([
-    "📂 Bulk JD Screening",
-    "🔍 Deep Audit against JD"
-])
+tab_bulk, tab_audit = st.tabs(
+    [
+        "📂 Bulk Resume Analysis",
+        "🔍 Deep Forensic Audit"
+    ]
+)
 
 
-# ============================================================
-# TAB 1: BULK JD SCREENING
-# ============================================================
+# ################################################################
+# TAB 1
+# BULK RESUME ANALYSIS
+# ################################################################
 
 with tab_bulk:
 
-    st.subheader(
-        "1. Target Job Description"
+    st.header(
+        "Bulk Resume Analysis"
     )
 
-    # --------------------------------------------------------
-    # JD Selection
-    # --------------------------------------------------------
+    st.write(
+        "Upload all resumes for the role. HireProof will analyze "
+        "every uploaded resume against the selected Job Description."
+    )
+
+
+    # ============================================================
+    # STEP 1 - JD
+    # ============================================================
+
+    st.subheader(
+        "1. Select Job Description"
+    )
+
+    jd_options = [
+        "📝 Custom / Paste Your Own JD"
+    ] + list(
+        JOB_DESCRIPTIONS.keys()
+    )
 
     jd_choice = st.selectbox(
-        "Choose a JD template or select custom:",
-        ["📝 Custom / Paste Your Own JD"]
-        + list(JOB_DESCRIPTIONS.keys()),
+        "Choose a Job Description:",
+        jd_options,
         key="bulk_jd_choice"
     )
 
 
-    # --------------------------------------------------------
-    # Custom JD
-    # --------------------------------------------------------
-
     if jd_choice == "📝 Custom / Paste Your Own JD":
 
         jd_text = st.text_area(
-            "Paste the Job Description here:",
-            height=220,
+            "Paste the Job Description:",
+            height=240,
             placeholder=(
-                "Example:\n"
-                "We are looking for a Senior Java Developer with "
-                "Spring Boot, PostgreSQL optimization, Docker, "
-                "Kubernetes, and Apache Kafka experience."
+                "Example:\n\n"
+                "We are looking for a Senior Backend Engineer "
+                "with Java, Spring Boot, PostgreSQL, Docker, "
+                "Kubernetes and Kafka experience."
             ),
             key="bulk_custom_jd"
         )
@@ -92,103 +419,131 @@ with tab_bulk:
     else:
 
         jd_text = st.text_area(
-            "Job Description Requirements (Editable):",
+            "Job Description:",
             value=JOB_DESCRIPTIONS[jd_choice],
-            height=220,
+            height=240,
             key="bulk_template_jd"
         )
 
 
-    st.divider()
-
-
-    # ========================================================
-    # PDF UPLOAD
-    # ========================================================
+    # ============================================================
+    # STEP 2 - RESUMES
+    # ============================================================
 
     st.subheader(
-        "2. Upload Candidate Resumes"
+        "2. Upload All Candidate Resumes"
     )
 
     uploaded_files = st.file_uploader(
-        "Drop one or multiple PDF resumes:",
+        "Upload one or multiple PDF resumes:",
         type=["pdf"],
         accept_multiple_files=True,
-        key="bulk_resume_uploader"
+        key="resume_uploader"
     )
 
 
     if uploaded_files:
 
         st.info(
-            f"📄 **{len(uploaded_files)} PDF resume(s) ready for screening.**"
+            f"📄 {len(uploaded_files)} resume(s) uploaded."
         )
 
 
-        # ====================================================
-        # RUN BULK SCREENING
-        # ====================================================
+        # ========================================================
+        # ANALYZE ALL
+        # ========================================================
 
         if st.button(
-            "🚀 Evaluate All Resumes Against JD",
+            "🚀 Analyze ALL Resumes",
             type="primary",
             use_container_width=True,
-            key="bulk_evaluate_button"
+            key="analyze_all"
         ):
 
             if not jd_text.strip():
 
                 st.error(
-                    "Please provide a Job Description before evaluating resumes."
+                    "Please provide a Job Description first."
                 )
 
             else:
 
-                progress_bar = st.progress(0)
+                results = []
 
-                status_text = st.empty()
+                total_files = len(
+                    uploaded_files
+                )
 
-                evaluation_results = []
+                progress = st.progress(
+                    0
+                )
 
-                total_files = len(uploaded_files)
+                status = st.empty()
+
+                st.session_state[
+                    "bulk_screening_jd"
+                ] = jd_text
 
 
-                # ------------------------------------------------
-                # PROCESS EACH PDF
-                # ------------------------------------------------
+                # =================================================
+                # IMPORTANT:
+                # EVERY RESUME GOES THROUGH THE AI
+                # =================================================
 
-                for idx, file in enumerate(uploaded_files):
+                for index, uploaded_file in enumerate(
+                    uploaded_files
+                ):
 
-                    status_text.text(
-                        f"Evaluating {file.name} against JD "
-                        f"({idx + 1}/{total_files})..."
+                    filename = uploaded_file.name
+
+                    status.info(
+                        f"AI analyzing: {filename} "
+                        f"({index + 1}/{total_files})"
                     )
 
 
-                    # --------------------------------------------
-                    # Read PDF
-                    # --------------------------------------------
+                    # -------------------------------------------------
+                    # READ FILE
+                    # -------------------------------------------------
 
                     try:
 
-                        pdf_bytes = file.read()
+                        pdf_bytes = uploaded_file.read()
 
                     except Exception as error:
 
-                        st.error(
-                            f"Could not read {file.name}: {error}"
+                        results.append(
+                            {
+                                "filename": filename,
+                                "candidate_name": filename,
+                                "verdict": "REVIEW",
+                                "match_score_pct": 0,
+                                "brief_explanation": (
+                                    "The resume could not be read."
+                                ),
+                                "evaluation_summary": (
+                                    "The resume could not be read."
+                                ),
+                                "matched_skills": [],
+                                "missing_skills_gaps": [],
+                                "main_skills_extracted": [],
+                                "raw_text": "",
+                                "sanitized_text": "",
+                                "redaction_log": [],
+                                "evaluation_error": str(error)
+                            }
                         )
 
-                        progress_bar.progress(
-                            (idx + 1) / total_files
+                        progress.progress(
+                            (index + 1) / total_files
                         )
 
                         continue
 
 
-                    # --------------------------------------------
-                    # Extract PDF text
-                    # --------------------------------------------
+                    # -------------------------------------------------
+                    # PDF TEXT EXTRACTION
+                    # -------------------------------------------------
 
                     try:
 
@@ -198,39 +553,76 @@ with tab_bulk:
 
                     except Exception as error:
 
-                        st.error(
-                            f"Could not extract text from "
-                            f"{file.name}: {error}"
+                        results.append(
+                            {
+                                "filename": filename,
+                                "candidate_name": filename,
+                                "verdict": "REVIEW",
+                                "match_score_pct": 0,
+                                "brief_explanation": (
+                                    "The PDF text could not be extracted."
+                                ),
+                                "evaluation_summary": (
+                                    "PDF extraction failed."
+                                ),
+                                "matched_skills": [],
+                                "missing_skills_gaps": [],
+                                "main_skills_extracted": [],
+                                "raw_text": "",
+                                "sanitized_text": "",
+                                "redaction_log": [],
+                                "evaluation_error": str(error)
+                            }
                         )
 
-                        progress_bar.progress(
-                            (idx + 1) / total_files
+                        progress.progress(
+                            (index + 1) / total_files
                         )
 
                         continue
 
 
-                    # --------------------------------------------
-                    # Check extracted text
-                    # --------------------------------------------
+                    # -------------------------------------------------
+                    # EMPTY PDF CHECK
+                    # -------------------------------------------------
 
                     if not raw_text.strip():
 
-                        st.warning(
-                            f"No readable text found in {file.name}. "
-                            f"This may be a scanned or image-only PDF."
+                        results.append(
+                            {
+                                "filename": filename,
+                                "candidate_name": filename,
+                                "verdict": "REVIEW",
+                                "match_score_pct": 0,
+                                "brief_explanation": (
+                                    "No readable text was found. "
+                                    "The PDF may be scanned or image-based."
+                                ),
+                                "evaluation_summary": (
+                                    "No readable text was found."
+                                ),
+                                "matched_skills": [],
+                                "missing_skills_gaps": [],
+                                "main_skills_extracted": [],
+                                "raw_text": raw_text,
+                                "sanitized_text": "",
+                                "redaction_log": [],
+                                "evaluation_error": (
+                                    "Empty extracted PDF text"
+                                )
+                            }
                         )
 
-                        progress_bar.progress(
-                            (idx + 1) / total_files
+                        progress.progress(
+                            (index + 1) / total_files
                         )
 
                         continue
 
 
-                    # --------------------------------------------
-                    # Screen Resume Against JD
-                    # --------------------------------------------
+                    # -------------------------------------------------
+                    # AI SCREENING
+                    # -------------------------------------------------
 
                     try:
 
@@ -241,148 +633,332 @@ with tab_bulk:
 
                     except Exception as error:
 
-                        st.error(
-                            f"JD screening failed for "
-                            f"{file.name}: {error}"
+                        results.append(
+                            {
+                                "filename": filename,
+                                "candidate_name": filename,
+                                "verdict": "REVIEW",
+                                "match_score_pct": 0,
+                                "brief_explanation": (
+                                    "AI analysis failed for this resume."
+                                ),
+                                "evaluation_summary": (
+                                    "AI analysis failed."
+                                ),
+                                "matched_skills": [],
+                                "missing_skills_gaps": [],
+                                "main_skills_extracted": [],
+                                "raw_text": raw_text,
+                                "sanitized_text": "",
+                                "redaction_log": [],
+                                "evaluation_error": str(error)
+                            }
                         )
 
-                        progress_bar.progress(
-                            (idx + 1) / total_files
+                        progress.progress(
+                            (index + 1) / total_files
                         )
 
                         continue
 
 
-                    # --------------------------------------------
-                    # Store additional local information
-                    # --------------------------------------------
+                    # -------------------------------------------------
+                    # ADD LOCAL METADATA
+                    # -------------------------------------------------
 
-                    result["filename"] = file.name
+                    result["filename"] = filename
 
                     result["raw_text"] = raw_text
 
+                    # The screening engine already performed the full forensic
+                    # audit. Reuse that report instead of calling Gemini twice.
+                    forensic_report = result.get("forensic_report")
+                    if forensic_report:
+                        st.session_state["deep_audit"][filename] = {
+                            "report": forensic_report,
+                            "sanitized": result.get("sanitized_text", ""),
+                            "redaction_log": result.get("redaction_log", [])
+                        }
 
-                    evaluation_results.append(
+
+                    # -------------------------------------------------
+                    # NORMALIZE AI EXPLANATION
+                    # -------------------------------------------------
+
+                    if not result.get(
+                        "brief_explanation"
+                    ):
+
+                        result["brief_explanation"] = (
+                            result.get(
+                                "evaluation_summary",
+                                "No explanation returned."
+                            )
+                        )
+
+
+                    if not result.get(
+                        "evaluation_summary"
+                    ):
+
+                        result["evaluation_summary"] = (
+                            result.get(
+                                "brief_explanation",
+                                "No explanation returned."
+                            )
+                        )
+
+
+                    # -------------------------------------------------
+                    # SAVE RESULT
+                    # -------------------------------------------------
+
+                    results.append(
                         result
                     )
 
 
-                    progress_bar.progress(
-                        (idx + 1) / total_files
+                    progress.progress(
+                        (index + 1) / total_files
                     )
 
 
-                # ------------------------------------------------
-                # SAVE RESULTS
-                # ------------------------------------------------
+                # =================================================
+                # SAVE ALL RESULTS
+                # =================================================
 
-                if evaluation_results:
+                st.session_state[
+                    "evaluation_results"
+                ] = results
 
-                    st.session_state[
-                        "evaluation_results"
-                    ] = evaluation_results
+                st.session_state[
+                    "deep_audit"
+                ] = {}
 
-                    st.session_state[
-                        "bulk_screening_jd"
-                    ] = jd_text
-
-                    status_text.success(
-                        "🎉 All readable resumes were evaluated "
-                        "against the Job Description!"
-                    )
-
-                else:
-
-                    status_text.error(
-                        "No resumes could be evaluated."
-                    )
+                status.success(
+                    f"✅ AI analysis completed for "
+                    f"{len(results)} uploaded resume(s)."
+                )
 
 
-    # ========================================================
-    # DISPLAY RESULTS
-    # ========================================================
+    # ============================================================
+    # GET RESULTS
+    # ============================================================
 
-    if (
-        "evaluation_results" in st.session_state
-        and st.session_state["evaluation_results"]
-    ):
+    results = st.session_state.get(
+        "evaluation_results",
+        []
+    )
 
-        results = st.session_state[
-            "evaluation_results"
-        ]
 
+    if results:
 
         st.divider()
 
-        st.subheader(
-            "3. Candidate Evaluation Summary"
+        st.header(
+            "📊 Complete Resume Analysis"
+        )
+
+        st.caption(
+            "Every uploaded resume is evaluated against every explicit JD requirement, and the same run produces its deep forensic audit."
+        )
+
+        audit_ready = sum(
+            1 for item in results if item.get("forensic_report")
+        )
+        st.info(f"Deep audit coverage: {audit_ready}/{len(results)} candidate(s) have a complete forensic report.")
+
+
+        # ========================================================
+        # COUNTS
+        # ========================================================
+
+        (
+            shortlisted,
+            review,
+            rejected,
+            errors
+        ) = count_verdicts(
+            results
         )
 
 
-        # ====================================================
-        # METRICS
-        # ====================================================
-
-        shortlisted_count = sum(
-            1
-            for r in results
-            if r.get("verdict") == "SHORTLIST"
-        )
-
-        review_count = sum(
-            1
-            for r in results
-            if r.get("verdict") == "REVIEW"
-        )
-
-        rejected_count = sum(
-            1
-            for r in results
-            if r.get("verdict") == "REJECT"
-        )
-
-
-        c1, c2, c3 = st.columns(3)
-
+        c1, c2, c3, c4, c5 = st.columns(5)
 
         c1.metric(
-            "Shortlisted",
-            shortlisted_count
+            "Total Analyzed",
+            len(results)
         )
-
 
         c2.metric(
-            "For Review",
-            review_count
+            "Selected",
+            shortlisted
         )
-
 
         c3.metric(
+            "Review",
+            review
+        )
+
+        c4.metric(
             "Rejected",
-            rejected_count
+            rejected
+        )
+
+        c5.metric(
+            "Processing Issues",
+            errors
         )
 
 
-        # ====================================================
-        # SCREENING TABLE
-        # ====================================================
+        # ========================================================
+        # SELECTED
+        # ========================================================
 
-        st.write(
-            "### 📊 Candidate Screening Matrix"
+        selected_results = [
+            result
+            for result in results
+            if str(
+                result.get(
+                    "verdict",
+                    ""
+                )
+            ).upper() == "SHORTLIST"
+        ]
+
+
+        if selected_results:
+
+            st.divider()
+
+            st.header(
+                "🟢 Selected Candidates"
+            )
+
+            st.caption(
+                "Candidates whose resumes contain sufficient "
+                "evidence for the screening criteria."
+            )
+
+
+            for result in selected_results:
+
+                with st.container(
+                    border=True
+                ):
+
+                    display_candidate_summary(
+                        result
+                    )
+
+
+        # ========================================================
+        # REVIEW
+        # ========================================================
+
+        review_results = [
+            result
+            for result in results
+            if str(
+                result.get(
+                    "verdict",
+                    ""
+                )
+            ).upper() == "REVIEW"
+        ]
+
+
+        if review_results:
+
+            st.divider()
+
+            st.header(
+                "🟡 Candidates Requiring Review"
+            )
+
+            st.caption(
+                "These resumes contain partial, unclear or "
+                "insufficient evidence and should receive human review."
+            )
+
+
+            for result in review_results:
+
+                with st.container(
+                    border=True
+                ):
+
+                    display_candidate_summary(
+                        result
+                    )
+
+
+        # ========================================================
+        # REJECTED
+        # ========================================================
+
+        rejected_results = [
+            result
+            for result in results
+            if str(
+                result.get(
+                    "verdict",
+                    ""
+                )
+            ).upper() == "REJECT"
+        ]
+
+
+        if rejected_results:
+
+            st.divider()
+
+            st.header(
+                "🔴 Rejected Candidates"
+            )
+
+            st.caption(
+                "The AI identified job-related requirement gaps "
+                "based on the resume evidence."
+            )
+
+
+            for result in rejected_results:
+
+                with st.container(
+                    border=True
+                ):
+
+                    display_candidate_summary(
+                        result
+                    )
+
+
+        # ========================================================
+        # COMPLETE MATRIX
+        # ========================================================
+
+        st.divider()
+
+        st.header(
+            "📋 Complete Candidate Matrix"
+        )
+
+        st.caption(
+            "This table contains every analyzed resume."
         )
 
 
-        # Header
-        header = st.columns([
-            2.0,
-            1.8,
-            1.8,
-            1.1,
-            1.0,
-            3.0,
-            3.0
-        ])
-
+        header = st.columns(
+            [
+                2.2,
+                1.8,
+                1.3,
+                1.0,
+                3.0,
+                3.0
+            ]
+        )
 
         header[0].markdown(
             "**Candidate**"
@@ -401,244 +977,103 @@ with tab_bulk:
         )
 
         header[4].markdown(
-            "**File**"
+            "**Matched**"
         )
 
         header[5].markdown(
-            "**Matched Skills**"
-        )
-
-        header[6].markdown(
-            "**Missing / Gaps**"
+            "**Gaps**"
         )
 
 
         st.divider()
 
 
-        # Candidate rows
         for result in results:
 
             candidate_name = result.get(
                 "candidate_name",
-                result.get(
-                    "filename",
-                    "Unknown Candidate"
-                )
+                "Unknown Candidate"
             )
-
 
             domain_role = result.get(
                 "domain_role",
                 "N/A"
             )
 
-
-            verdict = result.get(
-                "verdict",
-                "REVIEW"
-            )
-
+            verdict = str(
+                result.get(
+                    "verdict",
+                    "REVIEW"
+                )
+            ).upper()
 
             score = result.get(
                 "match_score_pct",
                 0
             )
 
-
-            matched_skills = result.get(
-                "matched_skills",
-                []
+            matched = safe_list(
+                result.get(
+                    "matched_skills",
+                    []
+                )
             )
 
-
-            missing_skills = result.get(
-                "missing_skills_gaps",
-                []
+            gaps = safe_list(
+                result.get(
+                    "missing_skills_gaps",
+                    []
+                )
             )
 
+            row = st.columns(
+                [
+                    2.2,
+                    1.8,
+                    1.3,
+                    1.0,
+                    3.0,
+                    3.0
+                ]
+            )
 
-            # Verdict icon
-            if verdict == "SHORTLIST":
-
-                verdict_display = "🟢 SHORTLIST"
-
-            elif verdict == "REVIEW":
-
-                verdict_display = "🟡 REVIEW"
-
-            else:
-
-                verdict_display = "🔴 REJECT"
-
-
-            cols = st.columns([
-                2.0,
-                1.8,
-                1.8,
-                1.1,
-                1.0,
-                3.0,
-                3.0
-            ])
-
-
-            cols[0].write(
+            row[0].write(
                 candidate_name
             )
 
-
-            cols[1].write(
+            row[1].write(
                 domain_role
             )
 
-
-            cols[2].write(
-                verdict_display
+            row[2].write(
+                f"{get_verdict_icon(verdict)} {verdict}"
             )
 
-
-            cols[3].write(
+            row[3].write(
                 f"{score}%"
             )
 
+            row[4].write(
+                ", ".join(matched)
+                if matched
+                else "None"
+            )
 
-            cols[4].write(
-                result.get(
-                    "filename",
-                    "N/A"
-                )
+            row[5].write(
+                ", ".join(gaps)
+                if gaps
+                else "None"
             )
 
 
-            cols[5].write(
-                ", ".join(
-                    matched_skills
-                )
-                if matched_skills
-                else "None identified"
-            )
-
-
-            cols[6].write(
-                ", ".join(
-                    missing_skills
-                )
-                if missing_skills
-                else "None identified"
-            )
-
-
-        # ====================================================
-        # CSV DOWNLOAD
-        # ====================================================
+        # ========================================================
+        # DETAILED EVERY-RESUME ANALYSIS
+        # ========================================================
 
         st.divider()
 
-        st.write(
-            "### 📥 Export Screening Results"
-        )
-
-
-        csv_buffer = io.StringIO()
-
-        csv_writer = csv.writer(
-            csv_buffer
-        )
-
-
-        csv_headers = [
-            "Filename",
-            "Candidate",
-            "Role / Domain",
-            "Verdict",
-            "Match Score %",
-            "Matched Skills",
-            "Missing Skills / Gaps",
-            "Main Skills Extracted",
-            "Evaluation Summary"
-        ]
-
-
-        csv_writer.writerow(
-            csv_headers
-        )
-
-
-        for result in results:
-
-            csv_writer.writerow([
-
-                result.get(
-                    "filename",
-                    ""
-                ),
-
-                result.get(
-                    "candidate_name",
-                    ""
-                ),
-
-                result.get(
-                    "domain_role",
-                    ""
-                ),
-
-                result.get(
-                    "verdict",
-                    ""
-                ),
-
-                result.get(
-                    "match_score_pct",
-                    0
-                ),
-
-                ", ".join(
-                    result.get(
-                        "matched_skills",
-                        []
-                    )
-                ),
-
-                ", ".join(
-                    result.get(
-                        "missing_skills_gaps",
-                        []
-                    )
-                ),
-
-                ", ".join(
-                    result.get(
-                        "main_skills_extracted",
-                        []
-                    )
-                ),
-
-                result.get(
-                    "evaluation_summary",
-                    ""
-                )
-            ])
-
-
-        st.download_button(
-            label="📥 Download JD Screening Results (CSV)",
-            data=csv_buffer.getvalue(),
-            file_name="hireproof_jd_screening_results.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-
-
-        # ====================================================
-        # DETAILED CANDIDATE BREAKDOWN
-        # ====================================================
-
-        st.divider()
-
-        st.write(
-            "### 🔍 Detailed Candidate Evaluation"
+        st.header(
+            "🔎 Detailed AI Analysis — Every Resume"
         )
 
 
@@ -646,245 +1081,193 @@ with tab_bulk:
 
             candidate_name = result.get(
                 "candidate_name",
+                "Unknown Candidate"
+            )
+
+            verdict = str(
                 result.get(
-                    "filename",
-                    "Unknown Candidate"
+                    "verdict",
+                    "REVIEW"
                 )
-            )
-
-
-            verdict = result.get(
-                "verdict",
-                "REVIEW"
-            )
-
+            ).upper()
 
             score = result.get(
                 "match_score_pct",
                 0
             )
 
+            filename = result.get(
+                "filename",
+                "Unknown File"
+            )
 
-            if verdict == "SHORTLIST":
-
-                icon = "🟢"
-
-            elif verdict == "REVIEW":
-
-                icon = "🟡"
-
-            else:
-
-                icon = "🔴"
+            icon = get_verdict_icon(
+                verdict
+            )
 
 
             with st.expander(
                 f"{icon} {candidate_name} — "
-                f"{verdict} ({score}%)"
+                f"{verdict} — {score}%"
             ):
+
+                st.markdown(
+                    f"**Resume:** `{filename}`"
+                )
+
+                st.markdown(
+                    f"**Verdict:** `{verdict}`"
+                )
+
+                st.markdown(
+                    f"**AI Match Score:** `{score}%`"
+                )
+
+
+                st.markdown(
+                    "### Brief AI Explanation"
+                )
+
+                st.info(
+                    get_brief_explanation(
+                        result
+                    )
+                )
+
 
                 col_a, col_b = st.columns(2)
 
 
-                # --------------------------------------------
-                # Candidate information
-                # --------------------------------------------
-
                 with col_a:
 
                     st.markdown(
-                        "#### Candidate Information"
+                        "### Matched Skills"
                     )
 
-
-                    st.markdown(
-                        f"**Resume File:** "
-                        f"{result.get('filename', 'N/A')}"
-                    )
-
-
-                    st.markdown(
-                        f"**Candidate:** "
-                        f"{candidate_name}"
-                    )
-
-
-                    st.markdown(
-                        f"**Primary Role / Domain:** "
-                        f"{result.get('domain_role', 'N/A')}"
-                    )
-
-
-                    st.markdown(
-                        f"**Verdict:** "
-                        f"`{verdict}`"
-                    )
-
-
-                    st.markdown(
-                        f"**Match Score:** "
-                        f"`{score}%`"
-                    )
-
-
-                    st.markdown(
-                        "#### Evaluation Summary"
-                    )
-
-
-                    st.write(
+                    matched = safe_list(
                         result.get(
-                            "evaluation_summary",
-                            "No evaluation summary available."
+                            "matched_skills",
+                            []
                         )
                     )
 
+                    if matched:
 
-                    st.markdown(
-                        "#### Main Skills Extracted"
-                    )
-
-
-                    main_skills = result.get(
-                        "main_skills_extracted",
-                        []
-                    )
-
-
-                    if main_skills:
-
-                        for skill in main_skills:
-
+                        for item in matched:
                             st.write(
-                                f"• {skill}"
+                                f"• {item}"
                             )
 
                     else:
 
                         st.write(
-                            "No main skills identified."
+                            "None"
                         )
 
-
-                # --------------------------------------------
-                # JD alignment
-                # --------------------------------------------
 
                 with col_b:
 
                     st.markdown(
-                        "#### JD Alignment"
+                        "### Missing / Gaps"
                     )
 
-
-                    st.markdown(
-                        "##### ✅ Matched Skills"
+                    gaps = safe_list(
+                        result.get(
+                            "missing_skills_gaps",
+                            []
+                        )
                     )
 
+                    if gaps:
 
-                    matched_skills = result.get(
-                        "matched_skills",
-                        []
-                    )
-
-
-                    if matched_skills:
-
-                        for skill in matched_skills:
-
+                        for item in gaps:
                             st.write(
-                                f"• {skill}"
+                                f"• {item}"
                             )
 
                     else:
 
                         st.write(
-                            "No direct skill matches identified."
+                            "None"
                         )
-
-
-                    st.markdown(
-                        "##### ⚠️ Missing Skills / Gaps"
-                    )
-
-
-                    missing_skills = result.get(
-                        "missing_skills_gaps",
-                        []
-                    )
-
-
-                    if missing_skills:
-
-                        for skill in missing_skills:
-
-                            st.write(
-                                f"• {skill}"
-                            )
-
-                    else:
-
-                        st.write(
-                            "No major gaps identified."
-                        )
-
-
-                # --------------------------------------------
-                # Bias Shield
-                # --------------------------------------------
-
-                st.divider()
 
 
                 st.markdown(
-                    "#### 🛡️ Bias Shield / Redaction Log"
+                    "### Main Skills Extracted"
                 )
 
-
-                redaction_log = result.get(
-                    "redaction_log",
-                    []
+                skills = safe_list(
+                    result.get(
+                        "main_skills_extracted",
+                        []
+                    )
                 )
 
+                if skills:
 
-                if redaction_log:
-
-                    for item in redaction_log:
-
-                        st.write(
-                            f"• **{item.get('category', 'Unknown')}** — "
-                            f"{item.get('redacted_count', 0)} item(s) "
-                            f"redacted — "
-                            f"{item.get('reason', '')}"
-                        )
+                    st.write(
+                        ", ".join(skills)
+                    )
 
                 else:
 
                     st.write(
-                        "No PII/contact/year information "
-                        "was detected for redaction."
+                        "None"
                     )
 
 
-                # --------------------------------------------
-                # Sanitized Resume
-                # --------------------------------------------
+                # ------------------------------------------------
+                # REDACTION LOG
+                # ------------------------------------------------
 
                 with st.expander(
-                    "View Sanitized Resume Text"
+                    "🛡️ Bias Shield / Redaction Log"
+                ):
+
+                    redactions = result.get(
+                        "redaction_log",
+                        []
+                    )
+
+                    if redactions:
+
+                        for item in redactions:
+
+                            st.write(
+                                f"• "
+                                f"**{item.get('category', 'Unknown')}** "
+                                f"— "
+                                f"{item.get('redacted_count', 0)} "
+                                f"item(s) redacted — "
+                                f"{item.get('reason', '')}"
+                            )
+
+                    else:
+
+                        st.write(
+                            "No redactions recorded."
+                        )
+
+
+                # ------------------------------------------------
+                # SANITIZED RESUME
+                # ------------------------------------------------
+
+                with st.expander(
+                    "View Sanitized Resume"
                 ):
 
                     st.text(
                         result.get(
                             "sanitized_text",
-                            "No sanitized text available."
+                            "No sanitized resume available."
                         )
                     )
 
 
-                # --------------------------------------------
-                # Raw PDF Text
-                # --------------------------------------------
+                # ------------------------------------------------
+                # RAW TEXT
+                # ------------------------------------------------
 
                 with st.expander(
                     "View Raw Extracted PDF Text"
@@ -898,36 +1281,151 @@ with tab_bulk:
                     )
 
 
-# ============================================================
-# TAB 2: DEEP AUDIT AGAINST JOB DESCRIPTION
-# ============================================================
+        # ========================================================
+        # CSV EXPORT
+        # ========================================================
+
+        st.divider()
+
+        st.header(
+            "📥 Export Complete Analysis"
+        )
+
+
+        csv_buffer = io.StringIO()
+
+        writer = csv.writer(
+            csv_buffer
+        )
+
+
+        writer.writerow(
+            [
+                "Filename",
+                "Candidate",
+                "Role / Domain",
+                "Verdict",
+                "Match Score %",
+                "Brief AI Explanation",
+                "Matched Skills",
+                "Missing Skills / Gaps",
+                "Main Skills"
+            ]
+        )
+
+
+        for result in results:
+
+            writer.writerow(
+                [
+                    result.get(
+                        "filename",
+                        ""
+                    ),
+
+                    result.get(
+                        "candidate_name",
+                        ""
+                    ),
+
+                    result.get(
+                        "domain_role",
+                        ""
+                    ),
+
+                    result.get(
+                        "verdict",
+                        ""
+                    ),
+
+                    result.get(
+                        "match_score_pct",
+                        0
+                    ),
+
+                    get_brief_explanation(
+                        result
+                    ),
+
+                    ", ".join(
+                        safe_list(
+                            result.get(
+                                "matched_skills",
+                                []
+                            )
+                        )
+                    ),
+
+                    ", ".join(
+                        safe_list(
+                            result.get(
+                                "missing_skills_gaps",
+                                []
+                            )
+                        )
+                    ),
+
+                    ", ".join(
+                        safe_list(
+                            result.get(
+                                "main_skills_extracted",
+                                []
+                            )
+                        )
+                    )
+                ]
+            )
+
+
+        st.download_button(
+            label="📥 Download Complete Resume Analysis",
+            data=csv_buffer.getvalue(),
+            file_name="hireproof_complete_resume_analysis.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+
+# ################################################################
+# TAB 2
+# DEEP FORENSIC AUDIT
+# ################################################################
 
 with tab_audit:
 
-    st.subheader(
-        "2. Deep Match an Uploaded Candidate Against a Job Description"
+    st.header(
+        "🔍 Deep Forensic Audit"
+    )
+
+    st.write(
+        "Select any analyzed resume and inspect the evidence "
+        "behind the AI screening result."
     )
 
 
-    # --------------------------------------------------------
-    # Make sure candidates exist
-    # --------------------------------------------------------
-
-    if (
-        "evaluation_results" in st.session_state
-        and st.session_state["evaluation_results"]
-    ):
-
-        results = st.session_state[
-            "evaluation_results"
-        ]
+    results = st.session_state.get(
+        "evaluation_results",
+        []
+    )
 
 
-        # ----------------------------------------------------
-        # Candidate selection
-        # ----------------------------------------------------
+    if not results:
 
-        candidate_options = {}
+        st.info(
+            "First upload and analyze resumes in "
+            "the Bulk Resume Analysis tab."
+        )
+
+    else:
+
+        # ========================================================
+        # CANDIDATE SELECTION
+        # ========================================================
+
+        candidate_names = []
+
+        candidate_map = {}
+
 
         for result in results:
 
@@ -936,221 +1434,414 @@ with tab_audit:
                 "Unknown File"
             )
 
-            candidate_options[
+            candidate_map[
                 filename
             ] = result
 
+            candidate_names.append(
+                filename
+            )
 
-        chosen_filename = st.selectbox(
-            "Select a screened candidate:",
-            list(candidate_options.keys()),
-            key="audit_candidate"
+
+        selected_filename = st.selectbox(
+            "Select Resume for Deep Audit:",
+            candidate_names,
+            key="deep_audit_candidate"
         )
 
 
-        selected_candidate = candidate_options[
-            chosen_filename
+        selected_candidate = candidate_map[
+            selected_filename
         ]
 
 
-        # ----------------------------------------------------
-        # JD selection
-        # ----------------------------------------------------
+        # ========================================================
+        # JD
+        # ========================================================
 
-        audit_jd_options = [
-            "📝 Custom / Use Current Bulk JD"
-        ] + list(
-            JOB_DESCRIPTIONS.keys()
+        audit_jd = st.session_state.get(
+            "bulk_screening_jd",
+            ""
         )
 
 
-        audit_jd_choice = st.selectbox(
-            "Select Target Job Description:",
-            audit_jd_options,
-            key="audit_jd_choice"
+        audit_jd = st.text_area(
+            "Job Description Used for Audit:",
+            value=audit_jd,
+            height=220,
+            key="audit_jd"
         )
 
 
-        if (
-            audit_jd_choice
-            == "📝 Custom / Use Current Bulk JD"
-        ):
+        # ========================================================
+        # CANDIDATE PREVIEW
+        # ========================================================
 
-            default_audit_jd = st.session_state.get(
-                "bulk_screening_jd",
-                ""
+        preview_left, preview_right = st.columns(2)
+
+
+        with preview_left:
+
+            st.markdown(
+                "### Job Description"
+            )
+
+            st.text(
+                audit_jd
             )
 
 
-            audit_jd_text = st.text_area(
-                "Job Description:",
-                value=default_audit_jd,
-                height=220,
-                key="audit_custom_jd"
+        with preview_right:
+
+            st.markdown(
+                "### Selected Resume"
             )
 
-        else:
-
-            audit_jd_text = st.text_area(
-                "Job Description Requirements:",
-                value=JOB_DESCRIPTIONS[
-                    audit_jd_choice
-                ],
-                height=220,
-                key="audit_template_jd"
-            )
-
-
-        # ----------------------------------------------------
-        # Display JD + Resume
-        # ----------------------------------------------------
-
-        col1, col2 = st.columns(2)
-
-
-        with col1:
-
-            st.text_area(
-                "Job Description Requirements",
-                value=audit_jd_text,
-                height=240,
-                key="audit_jd_display"
-            )
-
-
-        with col2:
-
-            st.text_area(
-                f"Extracted Text from {chosen_filename}",
-                value=selected_candidate.get(
+            st.text(
+                selected_candidate.get(
                     "raw_text",
                     ""
-                ),
-                height=240,
-                key="audit_resume_display"
+                )
             )
 
 
-        # ====================================================
-        # RUN DEEP COMPLIANCE AUDIT
-        # ====================================================
+        # ========================================================
+        # RUN AUDIT
+        # ========================================================
 
         if st.button(
-            "🔎 Run Deep Compliance Audit",
+            "🔎 Run Deep Forensic Audit",
             type="primary",
             use_container_width=True,
-            key="deep_audit_button"
+            key="run_forensic_audit"
         ):
 
-            if not audit_jd_text.strip():
+            if not audit_jd.strip():
 
                 st.error(
-                    "Please provide a Job Description "
-                    "before running the audit."
+                    "Please provide a Job Description."
                 )
 
             else:
 
                 with st.spinner(
-                    "Auditing against JD with "
-                    "verified evidence citations..."
+                    "AI is performing deep audit analysis for every candidate..."
                 ):
 
-                    try:
+                    st.session_state["deep_audit"] = {}
+                    audit_progress = st.progress(0)
+                    audit_status = st.empty()
+                    audit_failed = 0
 
-                        report, sanitized, redaction_log = evaluate_fit(
-                            selected_candidate.get(
-                                "raw_text",
-                                ""
-                            ),
-                            audit_jd_text
-                        )
+                    for audit_index, candidate in enumerate(results):
+                        filename = candidate.get("filename", f"candidate_{audit_index + 1}")
+                        audit_status.info(f"Deep auditing: {filename} ({audit_index + 1}/{len(results)})")
+
+                        try:
+                            report, sanitized, redaction_log = evaluate_fit(
+                                candidate.get("raw_text", ""), audit_jd
+                            )
+                            st.session_state["deep_audit"][filename] = {
+                                "report": report,
+                                "sanitized": sanitized,
+                                "redaction_log": redaction_log
+                            }
+                        except Exception as error:
+                            audit_failed += 1
+                            st.session_state["deep_audit"][filename] = {
+                                "report": {
+                                    "candidate_name": candidate.get("candidate_name", filename),
+                                    "overall_fit_status": "REVIEW",
+                                    "candidate_summary": "Deep audit could not be completed for this candidate.",
+                                    "adverse_action_reasoning": f"Audit error: {error}",
+                                    "requirements": []
+                                },
+                                "sanitized": candidate.get("sanitized_text", ""),
+                                "redaction_log": candidate.get("redaction_log", []),
+                                "audit_error": str(error)
+                            }
+
+                        audit_progress.progress((audit_index + 1) / len(results))
+
+                    audit_status.empty()
+
+                    selected_audit_data = st.session_state["deep_audit"].get(selected_filename)
+                    if selected_audit_data:
+                        st.session_state["single_pdf_report"] = selected_audit_data.get("report")
+                        st.session_state["single_pdf_sanitized"] = selected_audit_data.get("sanitized", "")
+                        st.session_state["single_pdf_redaction_log"] = selected_audit_data.get("redaction_log", [])
+                        st.session_state["single_pdf_candidate"] = selected_filename
+
+                    if audit_failed:
+                        st.warning(f"Deep audit completed with {audit_failed} candidate(s) requiring review.")
+                    else:
+                        st.success(f"Deep audit completed for all {len(results)} candidate(s).")
+
+        # ========================================================
+        # GET REPORT
+        # ========================================================
+
+        forensic_reports = st.session_state.get(
+            "deep_audit",
+            {}
+        )
 
 
-                        # ----------------------------------------
-                        # Save report
-                        # ----------------------------------------
-
-                        st.session_state[
-                            "single_pdf_report"
-                        ] = report
+        audit_data = forensic_reports.get(
+            selected_filename
+        )
 
 
-                        st.session_state[
-                            "single_pdf_sanitized"
-                        ] = sanitized
+        # Backward compatibility
+        if not audit_data:
+
+            if (
+                st.session_state.get(
+                    "single_pdf_candidate"
+                )
+                == selected_filename
+            ):
+
+                report = st.session_state.get(
+                    "single_pdf_report"
+                )
+
+                sanitized = st.session_state.get(
+                    "single_pdf_sanitized",
+                    ""
+                )
+
+                redaction_log = st.session_state.get(
+                    "single_pdf_redaction_log",
+                    []
+                )
+
+                if report:
+
+                    audit_data = {
+                        "report": report,
+                        "sanitized": sanitized,
+                        "redaction_log": redaction_log
+                    }
 
 
-                        st.session_state[
-                            "single_pdf_redaction_log"
-                        ] = redaction_log
+        # ========================================================
+        # DISPLAY AUDIT
+        # ========================================================
 
+        if audit_data:
 
-                        st.session_state[
-                            "single_pdf_candidate"
-                        ] = chosen_filename
+            report = audit_data.get(
+                "report",
+                {}
+            )
 
-
-                    except Exception as error:
-
-                        st.error(
-                            f"Deep audit failed: {error}"
-                        )
-
-
-        # ====================================================
-        # DISPLAY DEEP AUDIT REPORT
-        # ====================================================
-
-        if "single_pdf_report" in st.session_state:
-
-            rep = st.session_state[
-                "single_pdf_report"
-            ]
-
-
-            sanitized = st.session_state.get(
-                "single_pdf_sanitized",
+            sanitized = audit_data.get(
+                "sanitized",
                 ""
             )
 
-
-            redaction_log = st.session_state.get(
-                "single_pdf_redaction_log",
+            redaction_log = audit_data.get(
+                "redaction_log",
                 []
-            )
-
-
-            # ------------------------------------------------
-            # Overall result
-            # ------------------------------------------------
-
-            status = rep.get(
-                "overall_fit_status",
-                "REVIEW"
             )
 
 
             st.divider()
 
 
-            st.markdown(
-                f"### Audit Result: `{status}`"
+            # ====================================================
+            # LIVE METRICS
+            # ====================================================
+
+            requirements = report.get(
+                "requirements",
+                []
             )
 
+
+            met_count = sum(
+                1
+                for req in requirements
+                if str(
+                    req.get(
+                        "status",
+                        ""
+                    )
+                ).upper() == "MET"
+            )
+
+
+            partial_count = sum(
+                1
+                for req in requirements
+                if str(
+                    req.get(
+                        "status",
+                        ""
+                    )
+                ).upper() == "PARTIAL"
+            )
+
+
+            unmet_count = sum(
+                1
+                for req in requirements
+                if str(
+                    req.get(
+                        "status",
+                        ""
+                    )
+                ).upper() == "UNMET"
+            )
+
+
+            total_requirements = len(
+                requirements
+            )
+
+
+            if total_requirements:
+
+                coverage_score = round(
+                    (
+                        (
+                            met_count
+                            + (partial_count * 0.5)
+                        )
+                        / total_requirements
+                    ) * 100,
+                    1
+                )
+
+            else:
+
+                coverage_score = 0
+
+
+            verified_evidence = sum(
+                1
+                for req in requirements
+                if req.get(
+                    "citation_verified",
+                    False
+                )
+            )
+
+
+            overall_status = report.get(
+                "overall_fit_status",
+                selected_candidate.get(
+                    "verdict",
+                    "REVIEW"
+                )
+            )
+
+
+            st.subheader(
+                f"{get_verdict_icon(overall_status)} "
+                f"Audit Result: {overall_status}"
+            )
+
+
+            m1, m2, m3, m4, m5 = st.columns(5)
+
+
+            m1.metric(
+                "Requirements",
+                total_requirements
+            )
+
+            m2.metric(
+                "Met",
+                met_count
+            )
+
+            m3.metric(
+                "Partial",
+                partial_count
+            )
+
+            m4.metric(
+                "Unmet",
+                unmet_count
+            )
+
+            m5.metric(
+                "Evidence Verified",
+                verified_evidence
+            )
+
+
+            # ====================================================
+            # CANDIDATE SUMMARY
+            # ====================================================
+
+            st.markdown(
+                "### Executive Summary"
+            )
 
             st.info(
-                f"**Executive Summary:** "
-                f"{rep.get('candidate_summary', '')}"
+                report.get(
+                    "candidate_summary",
+                    "No executive summary returned."
+                )
             )
 
 
-            # ------------------------------------------------
-            # Bias Shield
-            # ------------------------------------------------
+            # ====================================================
+            # DEFENSIBILITY
+            # ====================================================
+
+            defensibility = report.get(
+                "compliance_defensibility_score"
+            )
+
+
+            if defensibility is not None:
+
+                st.metric(
+                    "Compliance Defensibility Score",
+                    f"{defensibility}/100"
+                )
+
+
+            # ====================================================
+            # CANDIDATE PROFILE
+            # ====================================================
+
+            st.subheader(
+                "Candidate Profile"
+            )
+
+
+            skills = safe_list(
+                report.get(
+                    "extracted_main_skills",
+                    []
+                )
+            )
+
+
+            if skills:
+
+                st.write(
+                    ", ".join(skills)
+                )
+
+            else:
+
+                st.write(
+                    "No main skills extracted."
+                )
+
+
+            # ====================================================
+            # BIAS SHIELD
+            # ====================================================
 
             with st.expander(
-                "🛡️ Protected-Attribute Bias Shield Log"
+                "🛡️ Bias Shield / Redaction Log"
             ):
 
                 if redaction_log:
@@ -1158,37 +1849,37 @@ with tab_audit:
                     for item in redaction_log:
 
                         st.write(
-                            f"- **{item.get('category', 'Unknown')}**: "
-                            f"Stripped "
-                            f"{item.get('redacted_count', 0)} item(s) "
-                            f"— Reason: "
+                            f"• "
+                            f"**{item.get('category', 'Unknown')}** "
+                            f"— "
+                            f"{item.get('redacted_count', 0)} "
+                            f"item(s) redacted — "
                             f"{item.get('reason', '')}"
                         )
 
                 else:
 
                     st.write(
-                        "No sensitive contact or "
-                        "graduation proxies detected."
+                        "No PII/contact/year redactions recorded."
                     )
 
 
-            # ------------------------------------------------
-            # Requirement-Level Audit
-            # ------------------------------------------------
+            # ====================================================
+            # REQUIREMENT AUDIT
+            # ====================================================
 
             st.subheader(
-                "📋 Requirement-Level Audit"
+                "📋 Requirement-Level Evidence Audit"
             )
 
 
-            requirements = rep.get(
-                "requirements",
-                []
-            )
+            if not requirements:
 
+                st.warning(
+                    "No requirement-level audit data returned."
+                )
 
-            if requirements:
+            else:
 
                 for req in requirements:
 
@@ -1197,91 +1888,136 @@ with tab_audit:
                         "REQ"
                     )
 
-
                     req_text = req.get(
                         "requirement_text",
                         ""
                     )
 
+                    req_status = str(
+                        req.get(
+                            "status",
+                            "UNMET"
+                        )
+                    ).upper()
 
-                    req_status = req.get(
-                        "status",
-                        "UNMET"
+                    criticality = req.get(
+                        "criticality",
+                        "N/A"
+                    )
+
+                    evidence_depth = req.get(
+                        "evidence_depth",
+                        "N/A"
+                    )
+
+                    quote = req.get(
+                        "verbatim_quote",
+                        "None"
+                    )
+
+                    citation_verified = req.get(
+                        "citation_verified",
+                        False
                     )
 
 
                     with st.expander(
-                        f"{req_id}: "
-                        f"{req_text} "
-                        f"— [{req_status}]"
+                        f"{get_verdict_icon(req_status)} "
+                        f"{req_id}: {req_text} "
+                        f"— {req_status}"
                     ):
 
-                        st.markdown(
-                            f"**Status:** "
-                            f"`{req_status}`"
+                        c1, c2, c3 = st.columns(3)
+
+
+                        c1.markdown(
+                            f"**Status:** `{req_status}`"
+                        )
+
+                        c2.markdown(
+                            f"**Criticality:** `{criticality}`"
+                        )
+
+                        c3.markdown(
+                            f"**Evidence:** `{evidence_depth}`"
                         )
 
 
                         st.markdown(
-                            "**Verbatim Quote:** "
-                            f"*\"{req.get('verbatim_quote', 'None')}\"*"
+                            "### Verbatim Evidence"
+                        )
+
+                        st.code(
+                            str(quote)
                         )
 
 
-                        # ------------------------------------
-                        # Citation verification
-                        # ------------------------------------
-
-                        if req.get(
-                            "citation_verified",
-                            False
-                        ):
+                        if citation_verified:
 
                             st.success(
-                                "✅ Citation Verified Against "
-                                "Source Resume"
+                                "✅ Citation verified against "
+                                "the sanitized source resume."
                             )
 
                         else:
 
                             st.error(
-                                "🚨 Citation Mismatch"
+                                "🚨 Citation could not be verified "
+                                "against the source resume."
                             )
 
 
                         st.markdown(
-                            f"**Gap Analysis:** "
-                            f"{req.get('gap_reasoning', '')}"
+                            "### Gap Analysis"
+                        )
+
+                        st.write(
+                            req.get(
+                                "gap_reasoning",
+                                "No gap reasoning provided."
+                            )
                         )
 
 
                         st.markdown(
-                            f"**Targeted Question:** "
-                            f"{req.get('interview_question', '')}"
+                            "### Targeted Interview Question"
+                        )
+
+                        st.write(
+                            req.get(
+                                "interview_question",
+                                "No question generated."
+                            )
                         )
 
 
                         st.markdown(
-                            f"🟢 **Good Response Signals:** "
-                            f"{req.get('eval_rubric_good', '')}"
+                            "### Good Response Signals"
+                        )
+
+                        st.write(
+                            req.get(
+                                "eval_rubric_good",
+                                "Not provided."
+                            )
                         )
 
 
                         st.markdown(
-                            f"🔴 **Red Flags / Bluffing:** "
-                            f"{req.get('eval_rubric_poor', '')}"
+                            "### Red Flags / Weak Evidence"
                         )
 
-            else:
+                        st.write(
+                            req.get(
+                                "eval_rubric_poor",
+                                "Not provided."
+                            )
+                        )
 
-                st.warning(
-                    "No requirement-level audit data was returned."
-                )
 
-
-            # =================================================
+            # ====================================================
             # SANITIZED RESUME
-            # =================================================
+            # ====================================================
 
             with st.expander(
                 "View Sanitized Resume Used for Audit"
@@ -1292,63 +2028,151 @@ with tab_audit:
                 )
 
 
-            # =================================================
-            # AUDIT DEFENSE
-            # =================================================
+            # ====================================================
+            # ADVERSE ACTION REASONING
+            # ====================================================
 
             st.divider()
 
+            st.subheader(
+                "Adverse Action / Gap Reasoning"
+            )
+
+            st.write(
+                report.get(
+                    "adverse_action_reasoning",
+                    "No adverse-action reasoning returned."
+                )
+            )
+
+
+            # ====================================================
+            # AUDIT DEFENSE
+            # ====================================================
+
+            st.divider()
 
             st.subheader(
                 "⚖️ Audit Defense & Rebuttal Console"
             )
 
 
-            user_query = st.text_input(
-                "Ask an audit question:",
+            user_question = st.text_input(
+                "Ask a question about this candidate:",
                 placeholder=(
-                    "Example: Why was this requirement marked PARTIAL?"
+                    "Example: Why was REQ-03 marked PARTIAL?"
                 ),
-                key="pdf_audit_question"
+                key=f"audit_question_{selected_filename}"
             )
 
 
-            if user_query:
+            if user_question:
 
                 with st.spinner(
-                    "Generating auditable justification..."
+                    "Generating evidence-based answer..."
                 ):
 
                     try:
 
-                        defense = interrogate_decision(
-                            rep,
+                        answer = interrogate_decision(
+                            report,
                             sanitized,
-                            user_query
+                            user_question
                         )
-
 
                         st.markdown(
-                            "**Defense Officer Statement:**"
+                            "### AI Audit Response"
                         )
-
 
                         st.write(
-                            defense
+                            answer
                         )
-
 
                     except Exception as error:
 
                         st.error(
-                            f"Could not generate audit defense: "
+                            f"Could not generate audit response: "
                             f"{error}"
                         )
 
 
-    else:
+# ============================================================
+# COMPREHENSIVE DEEP AUDIT EXPLANATIONS FOR EVERY CANDIDATE
+# ============================================================
 
-        st.info(
-            "Upload and screen PDF resumes in the "
-            "Bulk JD Screening tab first."
-        )
+if "deep_audit" in st.session_state and st.session_state["deep_audit"]:
+    deep_audit = st.session_state["deep_audit"]
+    st.divider()
+    st.header("📋 Comprehensive Deep Audit — Every Candidate")
+    st.caption("Requirement-level evidence and explanations for every audited resume.")
+
+    for fname, data in deep_audit.items():
+        rep = data.get("report", {})
+        sanitized = data.get("sanitized", "")
+        redaction_log = data.get("redaction_log", [])
+        status = str(rep.get("overall_fit_status", "REVIEW")).upper()
+        candidate_name = rep.get("candidate_name", fname)
+
+        with st.expander(f"{get_verdict_icon(status)} {candidate_name} — Deep Audit: [{status}]", expanded=False):
+            st.markdown(f"### Overall Audit Result: `{status}`")
+            st.markdown("**Executive Audit Explanation:**")
+            st.info(rep.get("candidate_summary", "No executive explanation returned."))
+
+            adverse = rep.get("adverse_action_reasoning")
+            if adverse:
+                st.markdown("**Compliance / Gap Reasoning:**")
+                st.write(adverse)
+
+            st.markdown("#### 🎯 Requirement-by-Requirement Evidence & Explanations")
+            requirements = rep.get("requirements", [])
+
+            if not requirements:
+                st.warning("No requirement-level audit data was returned for this candidate.")
+            else:
+                for req in requirements:
+                    req_status = str(req.get("status", "UNMET")).upper()
+                    badge = "🟢 MET" if req_status == "MET" else ("🟡 PARTIAL" if req_status == "PARTIAL" else "🔴 UNMET")
+                    st.markdown(f"**{req.get('requirement_id', 'REQ')}: {req.get('requirement_text', '')}**")
+                    c1, c2 = st.columns(2)
+                    c1.markdown(f"• **Status:** `{badge}`")
+                    c2.markdown(f"• **Evidence Depth:** `{req.get('evidence_depth', 'N/A')}`")
+                    st.markdown("• **Verbatim Evidence:**")
+                    st.code(str(req.get("verbatim_quote") or "No verbatim evidence provided."))
+
+                    if req.get("citation_verified"):
+                        st.success("Citation verified against the sanitized source resume.")
+                    else:
+                        st.warning("Citation is missing or could not be verified against the source resume.")
+
+                    st.markdown("• **Why This Rating / Gap Explanation:**")
+                    st.write(req.get("gap_reasoning", "No gap reasoning provided."))
+
+                    if req.get("interview_question"):
+                        st.markdown("**Targeted Gap Probe:**")
+                        st.markdown(f"**Question:** {req.get('interview_question')}")
+                    if req.get("eval_rubric_good"):
+                        st.markdown(f"🟢 **Pass Indicator:** {req.get('eval_rubric_good')}")
+                    if req.get("eval_rubric_poor"):
+                        st.markdown(f"🔴 **Fail / Weak Evidence Indicator:** {req.get('eval_rubric_poor')}")
+                    st.divider()
+
+            with st.expander("🛡️ Bias Shield / Redaction Log"):
+                if redaction_log:
+                    for item in redaction_log:
+                        st.write(f"• **{item.get('category', 'Unknown')}** — {item.get('redacted_count', 0)} item(s) redacted — {item.get('reason', '')}")
+                else:
+                    st.write("No redactions recorded.")
+
+            with st.expander("View Sanitized Resume Used for Deep Audit"):
+                st.text(sanitized if sanitized else "No sanitized resume available.")
+
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.divider()
+
+st.caption(
+    "HireProof — AI-assisted resume analysis with "
+    "evidence-based audit controls."
+)
