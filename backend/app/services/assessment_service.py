@@ -109,7 +109,10 @@ class AssessmentService:
         from google.genai import types
         from google.genai.errors import ServerError, ClientError, APIError
 
-        models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+        models = [settings.LLM_MODEL] if getattr(settings, "LLM_MODEL", None) else []
+        for m in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-3.5-flash"]:
+            if m not in models:
+                models.append(m)
 
         for attempt in range(max_retries):
             for model_name in models:

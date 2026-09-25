@@ -178,42 +178,79 @@ export function mapAssessmentToTechnicalAssessment(
 ): TechnicalAssessment {
   const drillDownQuestions = 'drill_down_questions' in assessment ? assessment.drill_down_questions || [] : [];
   const brokenCode = 'broken_code_snippet' in assessment ? assessment.broken_code_snippet : '';
+  const fb = assessment.findings_breakdown;
+  const isCompleted = assessment.status === 'EVALUATED' || (assessment.score !== undefined && assessment.score !== null && assessment.score > 0);
 
-  const questions: AssessmentQuestion[] = drillDownQuestions.map((q, idx) => ({
-    id: `q_${idx + 1}`,
-    question: q,
-    targetSkill: 'Technical Competency Drill-Down',
-    category: 'problem_solving',
-    evaluation: assessment.findings_breakdown?.question_evaluations?.[idx]
-      ? {
-          score: assessment.findings_breakdown.question_evaluations[idx].score || 8,
-          maxScore: 10,
-          reasoning: assessment.findings_breakdown.question_evaluations[idx].reasoning || 'Evaluated by Gemini rubric',
-          strengths: assessment.findings_breakdown.question_evaluations[idx].strengths || '',
-          weaknesses: assessment.findings_breakdown.question_evaluations[idx].weaknesses || '',
-        }
-      : undefined,
-  }));
+  const questions: AssessmentQuestion[] = drillDownQuestions.map((q, idx) => {
+    let evaluation = undefined;
+    if (fb?.question_evaluations?.[idx]) {
+      evaluation = {
+        score: fb.question_evaluations[idx].score || 8,
+        maxScore: 10,
+        reasoning: fb.question_evaluations[idx].reasoning || 'Evaluated by Gemini rubric',
+        strengths: fb.question_evaluations[idx].strengths || '',
+        weaknesses: fb.question_evaluations[idx].weaknesses || '',
+      };
+    } else if (fb?.resume_authenticity && isCompleted) {
+      const authScore = Math.max(1, Math.min(10, Math.round((fb.resume_authenticity.score || 80) / 10)));
+      evaluation = {
+        score: authScore,
+        maxScore: 10,
+        reasoning: fb.resume_authenticity.notes || 'Evaluated for practical implementation depth.',
+        strengths: (fb.resume_authenticity.score || 0) >= 70 ? 'Demonstrated authentic first-hand experience' : '',
+        weaknesses: (fb.resume_authenticity.score || 0) < 70 ? 'Implementation explanation lacked depth' : '',
+      };
+    }
+
+    return {
+      id: `q_${idx + 1}`,
+      question: q,
+      targetSkill: 'Technical Competency Drill-Down',
+      category: 'problem_solving',
+      evaluation,
+    };
+  });
 
   if (brokenCode) {
+    let codeEval = undefined;
+    if (fb?.code_review) {
+      codeEval = {
+        score: fb.code_review.score || 8,
+        maxScore: 10,
+        reasoning: fb.code_review.reasoning || '',
+        strengths: '',
+        weaknesses: '',
+      };
+    } else if ((fb?.error_handling_bug || fb?.concurrency_race_condition) && isCompleted) {
+      const b1Score = fb.error_handling_bug?.score || 50;
+      const b2Score = fb.concurrency_race_condition?.score || 50;
+      const combinedScore = Math.max(1, Math.min(10, Math.round(((b1Score + b2Score) / 2) / 10)));
+
+      const caughtList = [];
+      const missedList = [];
+      if (fb.error_handling_bug?.identified) caughtList.push('Caught error handling / rollback bug');
+      else missedList.push('Missed error handling / rollback bug');
+
+      if (fb.concurrency_race_condition?.identified) caughtList.push('Caught race condition / concurrency bug');
+      else missedList.push('Missed race condition / concurrency bug');
+
+      codeEval = {
+        score: combinedScore,
+        maxScore: 10,
+        reasoning: `${fb.error_handling_bug?.notes || ''} ${fb.concurrency_race_condition?.notes || ''}`.trim() || 'Evaluated code challenge bug diagnosis.',
+        strengths: caughtList.join('; '),
+        weaknesses: missedList.join('; '),
+      };
+    }
+
     questions.push({
       id: `q_code_review`,
       question: `Production Code Review & Bug Diagnosis Challenge:\n\n${brokenCode}`,
       targetSkill: 'Debugging & Code Review',
       category: 'technical',
-      evaluation: assessment.findings_breakdown?.code_review
-        ? {
-            score: assessment.findings_breakdown.code_review.score || 8,
-            maxScore: 10,
-            reasoning: assessment.findings_breakdown.code_review.reasoning || '',
-            strengths: '',
-            weaknesses: '',
-          }
-        : undefined,
+      evaluation: codeEval,
     });
   }
-
-  const isCompleted = assessment.status === 'EVALUATED' || (assessment.score !== undefined && assessment.score !== null && assessment.score > 0);
 
   return {
     id: String(assessment.id),
