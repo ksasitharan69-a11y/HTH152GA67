@@ -1,2 +1,9 @@
+# HireProof Root Requirements
 google-genai>=2.25.0
 python-dotenv>=1.2.3
+streamlit>=1.42.0
+openai>=1.50.0
+pypdf>=5.0.0
+pandas>=2.0.0
+requests>=2.31.0
+altair>=5.0.0

@@ -58,3 +58,6 @@ Thumbs.db
 
 # Nested scratch/test engine repos
 candidate-test-engine/
+
+# Streamlit
+.streamlit/
